@@ -1,0 +1,13 @@
+================================================================================
+INTER-DISTRICT CATCHMENT HYDROLOGY POLICY DIRECTIVE
+================================================================================
+Document Name: State River Basin Dredging Protocol & Sedimentation Advisory
+Asset ID: UNASSIGNED
+Location: Regional (Multiple Districts)
+Inspection Date: 2024-01-10
+Author / Source: Central Water Commission (CWC) Regional Basin Directorate
+Document Reference: CWC/REG/CIRCULAR/2024-002
+Review Status: FLAGGED_FOR_REVIEW_NO_SPECIFIC_ASSET
+
+OVERVIEW:
+This memorandum outlines general permissible dredging standards for alluvial river channels during the dry season. It does not pertain to a specific individual structural asset and contains no verified infrastructure primary key. Any automated tagging system must NOT attach this document to a specific asset record without human engineering review.

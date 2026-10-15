@@ -1,0 +1,27 @@
+================================================================================
+TECHNICAL DIAGNOSTIC REPORT: BULK WATER TREATMENT PUMPING MACHINERY
+================================================================================
+Document Name: Chambal Unit 3 High-Lift Pump Vibration Spectrum & Clarifier Drive Audit
+Asset ID: ASSET-WTP-002
+Asset Name: Chambal Bulk Water Treatment & Clarifier Unit 3
+Location: Kota, Rajasthan
+Inspection Date: 2024-03-02
+Author / Source: Rajasthan Urban Infrastructure Development Project (RUIDP) Mechanical Wing
+Document Reference: RUIDP/KOT/WTP3/2024-089
+Status: Requires Priority Intervention
+
+SECTION 1: PUMP MOTOR VIBRATION SPECTRUM ANALYSIS
+Tri-axial accelerometer readings taken at bearing housing of High-Lift Pump Motor #3:
+- Radial Vibration RMS Velocity: 7.82 mm/s (Peak Alert Threshold: 4.5 mm/s as per ISO 10816-3).
+- Spectral Peak detected at 2x running speed (59.6 Hz), confirming impeller vane pass defect and angular misalignment with discharge manifold.
+- High cavitation acoustic emission detected during raw intake turbidity fluctuations exceeding 180 NTU.
+
+SECTION 2: CLARIFIER UNIT 3 SLUDGE SCRAPER MECHANISM
+- Drive torque spikes observed up to 142% of maximum rated motor current during bottom sludge scraper sweeps.
+- Severe mechanical friction detected in central turn-table bearing due to grit contamination and failing lip seal.
+- Manual grab sample turbidity verified at 14.2 NTU whereas SCADA optical sensor reported 4.1 NTU, indicating a 10.1 NTU discrepancy due to sensor bio-fouling.
+
+RECOMMENDED INTERVENTIONS:
+1. Immediate isolation and overhaul of Pump #3 impeller and dynamic rotor balancing.
+2. High-pressure water jetting of rapid gravity sand filter underdrain nozzles.
+3. Recalibration and ultrasonic cleaning of intake turbidity sensor probes.

@@ -1,0 +1,26 @@
+================================================================================
+CRITICAL URBAN FLOOD MITIGATION ASSET TECHNICAL APPRAISAL
+================================================================================
+Document Name: Mithi River Tidal Outfall Sluice Gate Mechanical Operability Certification
+Asset ID: ASSET-DRN-006
+Asset Name: Mithi River Stormwater Tidal Outfall Sluice Gate
+Location: Mumbai Suburban, Maharashtra
+Inspection Date: 2024-02-19
+Author / Source: Brihanmumbai Municipal Corporation (BMC) Stormwater Drainage Dept
+Document Reference: BMC/SWD/MITHI/2024-011
+Status: Critical Warning Issued
+
+SECTION 1: TIDAL FLAP GATE SEIZURE
+- Visual inspection during lowest astronomical tide revealed Flap Gate #2 is mechanically jammed at an 18-degree open angle.
+- Cause of seizure: Dense marine bio-fouling, oyster encrustation, and silt wedging in the phosphor-bronze trunnion hinge pin assembly.
+- Seizure prevents automated back-sealing against incoming high tide, creating imminent danger of saline seawater back-inundation into low-lying transit corridors during spring tides exceeding 4.6m chart datum.
+
+SECTION 2: INTAKE SILTATION AND ACTUATOR TELEMETRY
+- Silt sedimentation depth in the approach channel measured at 1.85m, covering over 65% of the intake throat.
+- Electro-hydraulic hoist cylinder #1 shows hydraulic oil leakage at the rod seal (0.5 liters/hour loss rate).
+- Emergency diesel generator backup failed automatic transfer switch test during simulated power interruption.
+
+RECOMMENDED INTERVENTIONS:
+1. High-pressure steam cleaning and diver descaling of trunnion hinge pins within 14 days.
+2. Hydraulic dredging of 120 meters of intake throat channel.
+3. Cylinder seal overhaul and hydraulic fluid replacement.

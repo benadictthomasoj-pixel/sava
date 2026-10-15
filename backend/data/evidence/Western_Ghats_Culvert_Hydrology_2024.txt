@@ -1,0 +1,26 @@
+================================================================================
+PRE-MONSOON HYDROLOGICAL AND SLOPE STABILITY AUDIT
+================================================================================
+Document Name: Western Ghats Ghat-Road Km 142/6 Monsoon Drainage & Landslide Risk Assessment
+Asset ID: ASSET-HWY-003
+Asset Name: Western Ghats Ghat-Road Culvert Km 142/6
+Location: Idukki, Kerala
+Inspection Date: 2024-05-18
+Author / Source: Kerala State Disaster Management Authority & PWD Bridges Division
+Document Reference: KSDMA/IDK/HWY-142/2024-V2
+Status: Urgent Maintenance Requisitioned
+
+SECTION 1: BARREL SILTATION AND INLET BLOCKAGE
+- Physical sounding indicates 68% cross-sectional hydraulic blockage in the 2.5m x 2.0m RCC box barrel caused by accumulated granite scree, mudstone gravel, and uprooted vegetative debris.
+- Effective discharge capacity reduced from design 18.5 m3/sec to 5.2 m3/sec, posing catastrophic road overtopping risk during monsoon precipitation events exceeding 65 mm/hr.
+- Upstream inlet catch-pit filled with compacted sediment up to invert level.
+
+SECTION 2: STRUCTURAL INTEGRITY AND SLOPE MOVEMENT
+- Upstream left-bank masonry wingwall exhibits a diagonal shear fissure of 8mm width, caused by lateral earth pressure from saturated slope overburden.
+- Inclinometer sensor stationed 15m uphill reports creep displacement of 12mm over 60 days.
+- Invert concrete slab shows surface cavitation wear of 25mm depth along the central flow line.
+
+RECOMMENDED INTERVENTIONS:
+1. Urgent mechanical desilting and debris clearing of the culvert barrel before June 1st.
+2. Installation of wire-mesh gabion retaining crates uphill to trap sliding scree.
+3. Epoxy-grout injection into wingwall diagonal shear fissure.

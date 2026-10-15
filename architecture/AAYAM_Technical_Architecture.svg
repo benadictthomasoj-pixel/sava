@@ -1,0 +1,227 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 950" width="100%" height="100%" style="background:#090d16; font-family: 'Inter', -apple-system, sans-serif;">
+  <defs>
+    <!-- Gradients -->
+    <linearGradient id="headerGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#0284c7" />
+      <stop offset="50%" stop-color="#06b6d4" />
+      <stop offset="100%" stop-color="#6366f1" />
+    </linearGradient>
+    <linearGradient id="cardGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#131b2e" />
+      <stop offset="100%" stop-color="#0d1322" />
+    </linearGradient>
+    <filter id="glow" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="8" result="blur" />
+      <feComposite in="SourceGraphic" in2="blur" operator="over" />
+    </filter>
+    <!-- Arrow marker -->
+    <marker id="arrow" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 0 1 L 10 5 L 0 9 z" fill="#38bdf8" />
+    </marker>
+  </defs>
+
+  <!-- Title & Subtitle Banner -->
+  <rect x="40" y="30" width="1520" height="75" rx="14" fill="#0f172a" stroke="#1e293b" stroke-width="1.5" />
+  <text x="70" y="70" fill="url(#headerGrad)" font-size="26" font-weight="900" letter-spacing="1">AAYAM — TECHNICAL ARCHITECTURE</text>
+  <text x="70" y="92" fill="#94a3b8" font-size="13" font-weight="500">AI-Powered Public Infrastructure Intelligence Layer &bull; Milestone 1–4 Implemented Stack &amp; Dataflow</text>
+  
+  <rect x="1350" y="48" width="180" height="36" rx="8" fill="#0284c7" fill-opacity="0.15" stroke="#0284c7" stroke-width="1.2" />
+  <text x="1440" y="71" fill="#38bdf8" font-size="12" font-weight="700" text-anchor="middle">HACKATHON PROTOTYPE</text>
+
+  <!-- ================= LAYER 1: USER INTERFACE ================= -->
+  <g transform="translate(40, 125)">
+    <rect width="470" height="230" rx="12" fill="url(#cardGrad)" stroke="#1e293b" stroke-width="1.5" />
+    <rect x="15" y="15" width="440" height="30" rx="6" fill="#0284c7" fill-opacity="0.12" />
+    <text x="25" y="35" fill="#38bdf8" font-size="13" font-weight="800">1. PRESENTATION LAYER (USER INTERFACE)</text>
+    
+    <g transform="translate(20, 58)">
+      <!-- Box 1 -->
+      <rect width="200" height="65" rx="8" fill="#1e293b" stroke="#334155" stroke-width="1" />
+      <text x="15" y="24" fill="#f8fafc" font-size="12" font-weight="700">React 19 + Vite</text>
+      <text x="15" y="42" fill="#94a3b8" font-size="10">SPA Architecture &bull; Fast HMR</text>
+      <text x="15" y="55" fill="#38bdf8" font-size="9" font-family="monospace">Vite Proxy: /api/* &rarr; :8000</text>
+      
+      <!-- Box 2 -->
+      <rect x="220" width="210" height="65" rx="8" fill="#1e293b" stroke="#334155" stroke-width="1" />
+      <text x="235" y="24" fill="#f8fafc" font-size="12" font-weight="700">Tailwind CSS 3.4</text>
+      <text x="235" y="42" fill="#94a3b8" font-size="10">Dark Slate/Navy Theme</text>
+      <text x="235" y="55" fill="#10b981" font-size="9">Status-Coded Risk Indicators</text>
+
+      <!-- Box 3 -->
+      <rect y="80" width="200" height="75" rx="8" fill="#1e293b" stroke="#334155" stroke-width="1" />
+      <text x="15" y="102" fill="#f8fafc" font-size="12" font-weight="700">Leaflet + React-Leaflet</text>
+      <text x="15" y="120" fill="#94a3b8" font-size="10">Interactive GIS Map Canvas</text>
+      <text x="15" y="135" fill="#38bdf8" font-size="9">Custom HTML DivIcons &bull; Popups</text>
+
+      <!-- Box 4 -->
+      <rect x="220" y="80" width="210" height="75" rx="8" fill="#1e293b" stroke="#334155" stroke-width="1" />
+      <text x="235" y="102" fill="#f8fafc" font-size="12" font-weight="700">5 Dashboard Views</text>
+      <text x="235" y="120" fill="#94a3b8" font-size="10">Overview &bull; Registry &bull; GIS Map</text>
+      <text x="235" y="135" fill="#c084fc" font-size="9">Digital Heartbeat &bull; AI Copilot</text>
+    </g>
+  </g>
+
+  <!-- ================= LAYER 2: API & APPLICATION LAYER ================= -->
+  <g transform="translate(540, 125)">
+    <rect width="520" height="230" rx="12" fill="url(#cardGrad)" stroke="#1e293b" stroke-width="1.5" />
+    <rect x="15" y="15" width="490" height="30" rx="6" fill="#06b6d4" fill-opacity="0.12" />
+    <text x="25" y="35" fill="#22d3ee" font-size="13" font-weight="800">2. APPLICATION &amp; REST API LAYER (FASTAPI)</text>
+    
+    <g transform="translate(20, 58)">
+      <!-- API Endpoints Container -->
+      <rect width="480" height="150" rx="8" fill="#1e293b" stroke="#334155" stroke-width="1" />
+      
+      <rect x="15" y="12" width="220" height="36" rx="6" fill="#0f172a" stroke="#38bdf8" stroke-width="0.8" />
+      <text x="25" y="27" fill="#38bdf8" font-size="10" font-weight="700">GET /api/assets</text>
+      <text x="25" y="40" fill="#94a3b8" font-size="9">Filterable Registry &amp; Stats</text>
+
+      <rect x="245" y="12" width="220" height="36" rx="6" fill="#0f172a" stroke="#38bdf8" stroke-width="0.8" />
+      <text x="255" y="27" fill="#38bdf8" font-size="10" font-weight="700">GET /api/assets/{id}/heartbeat</text>
+      <text x="255" y="40" fill="#94a3b8" font-size="9">Live 4-Factor Risk Breakdown</text>
+
+      <rect x="15" y="56" width="220" height="36" rx="6" fill="#0f172a" stroke="#38bdf8" stroke-width="0.8" />
+      <text x="25" y="71" fill="#38bdf8" font-size="10" font-weight="700">POST /api/copilot/ask</text>
+      <text x="25" y="84" fill="#94a3b8" font-size="9">Evidence-Grounded RAG Engine</text>
+
+      <rect x="245" y="56" width="220" height="36" rx="6" fill="#0f172a" stroke="#10b981" stroke-width="0.8" />
+      <text x="255" y="71" fill="#34d399" font-size="10" font-weight="700">POST /api/inspections/{id}/verify</text>
+      <text x="255" y="84" fill="#94a3b8" font-size="9">Closed-Loop Outcome Certification</text>
+
+      <rect x="15" y="100" width="450" height="38" rx="6" fill="#0f172a" stroke="#475569" stroke-width="0.8" />
+      <text x="25" y="115" fill="#f8fafc" font-size="10" font-weight="700">Cross-Cutting Middleware</text>
+      <text x="25" y="128" fill="#94a3b8" font-size="9">CORS Middleware &bull; Lifespan Startup Seeder &bull; Pydantic v2 Request/Response Validation</text>
+    </g>
+  </g>
+
+  <!-- ================= LAYER 3: INTELLIGENCE LAYER ================= -->
+  <g transform="translate(1090, 125)">
+    <rect width="470" height="230" rx="12" fill="url(#cardGrad)" stroke="#1e293b" stroke-width="1.5" />
+    <rect x="15" y="15" width="440" height="30" rx="6" fill="#818cf8" fill-opacity="0.12" />
+    <text x="25" y="35" fill="#a5b4fc" font-size="13" font-weight="800">3. INTELLIGENCE &amp; REASONING LAYER</text>
+
+    <g transform="translate(20, 58)">
+      <rect width="430" height="65" rx="8" fill="#1e293b" stroke="#334155" stroke-width="1" />
+      <text x="15" y="24" fill="#f8fafc" font-size="11" font-weight="700">Digital Heartbeat Risk Engine</text>
+      <text x="15" y="40" fill="#94a3b8" font-size="9">Structural (35%) &bull; Environmental (25%) &bull; Compliance (25%) &bull; Operational (15%)</text>
+      <text x="15" y="54" fill="#34d399" font-size="9">Dynamic Recalculation on Verified Remediation</text>
+
+      <rect y="78" width="430" height="77" rx="8" fill="#1e293b" stroke="#334155" stroke-width="1" />
+      <text x="15" y="98" fill="#f8fafc" font-size="11" font-weight="700">RAG Pipeline &amp; Document Store (pypdf)</text>
+      <text x="15" y="114" fill="#94a3b8" font-size="9">Extracts PDF/TXT pages, asset IDs, timestamps &bull; Unattached memos flagged</text>
+      <text x="15" y="128" fill="#38bdf8" font-size="9">Hybrid Ingestion &bull; Grounded Synthesis &bull; Provenance Citations ([Ref 1], [Ref 2])</text>
+      <text x="15" y="142" fill="#f59e0b" font-size="9">Retrieval-Only Fallback &bull; Optional LLM (Gemini / OpenAI)</text>
+    </g>
+  </g>
+
+  <!-- ================= CONNECTOR ARROWS (ROW 1 TO ROW 2) ================= -->
+  <line x1="275" y1="355" x2="275" y2="400" stroke="#38bdf8" stroke-width="2" marker-end="url(#arrow)" />
+  <line x1="800" y1="355" x2="800" y2="400" stroke="#38bdf8" stroke-width="2" marker-end="url(#arrow)" />
+  <line x1="1325" y1="355" x2="1325" y2="400" stroke="#38bdf8" stroke-width="2" marker-end="url(#arrow)" />
+
+  <!-- ================= LAYER 4: DATA LAYER (SQLITE & DOCUMENTS) ================= -->
+  <g transform="translate(40, 400)">
+    <rect width="730" height="240" rx="12" fill="url(#cardGrad)" stroke="#1e293b" stroke-width="1.5" />
+    <rect x="15" y="15" width="700" height="30" rx="6" fill="#10b981" fill-opacity="0.12" />
+    <text x="25" y="35" fill="#34d399" font-size="13" font-weight="800">4. DATA PERSISTENCE &amp; EVIDENCE LAYER (SQLITE + STORAGE)</text>
+    
+    <g transform="translate(20, 58)">
+      <!-- SQLite Database Table: assets -->
+      <rect width="335" height="160" rx="8" fill="#1e293b" stroke="#334155" stroke-width="1" />
+      <text x="15" y="24" fill="#f8fafc" font-size="12" font-weight="700">SQLite: assets Table</text>
+      <text x="15" y="42" fill="#94a3b8" font-size="10">id (PK) &bull; name &bull; category &bull; district &bull; state</text>
+      <text x="15" y="58" fill="#94a3b8" font-size="10">latitude &bull; longitude &bull; construction_year</text>
+      <text x="15" y="74" fill="#94a3b8" font-size="10">status &bull; risk_score &bull; risk_level &bull; health_index</text>
+      <text x="15" y="90" fill="#94a3b8" font-size="10">last_inspection_date &bull; flagged_reasons</text>
+      <rect x="15" y="110" width="305" height="36" rx="6" fill="#0f172a" />
+      <text x="25" y="132" fill="#f59e0b" font-size="10" font-weight="600">8 Synthetic Multi-State Public Records</text>
+
+      <!-- SQLite Database Table: inspections -->
+      <rect x="355" width="345" height="160" rx="8" fill="#1e293b" stroke="#334155" stroke-width="1" />
+      <text x="370" y="24" fill="#f8fafc" font-size="12" font-weight="700">SQLite: inspections Table</text>
+      <text x="370" y="42" fill="#94a3b8" font-size="10">id (PK) &bull; asset_id (FK &rarr; assets.id)</text>
+      <text x="370" y="58" fill="#94a3b8" font-size="10">inspection_date &bull; inspection_type &bull; findings</text>
+      <text x="370" y="74" fill="#94a3b8" font-size="10">recommended_action &bull; actual_action_taken</text>
+      <text x="370" y="90" fill="#94a3b8" font-size="10">status (Pending | In Progress | Completed | Verified)</text>
+      <text x="370" y="106" fill="#94a3b8" font-size="10">verification_notes &bull; verification_date &bull; responsible_user</text>
+      <rect x="370" y="118" width="315" height="28" rx="6" fill="#0f172a" />
+      <text x="380" y="136" fill="#34d399" font-size="10" font-weight="600">Closed-Loop Workflow Support Enabled</text>
+    </g>
+  </g>
+
+  <!-- ================= LAYER 5: EXTERNAL SERVICES & DOCUMENTS ================= -->
+  <g transform="translate(800, 400)">
+    <rect width="760" height="240" rx="12" fill="url(#cardGrad)" stroke="#1e293b" stroke-width="1.5" />
+    <rect x="15" y="15" width="730" height="30" rx="6" fill="#f59e0b" fill-opacity="0.12" />
+    <text x="25" y="35" fill="#fbbf24" font-size="13" font-weight="800">5. EXTERNAL DATA SOURCES &amp; UNSTRUCTURED AUDIT REPOSITORY</text>
+
+    <g transform="translate(20, 58)">
+      <!-- Box 1: OpenStreetMap -->
+      <rect width="350" height="75" rx="8" fill="#1e293b" stroke="#334155" stroke-width="1" />
+      <text x="15" y="24" fill="#f8fafc" font-size="12" font-weight="700">OpenStreetMap Tile Service</text>
+      <text x="15" y="42" fill="#94a3b8" font-size="10">Permitted Public Tile Server: tile.openstreetmap.org</text>
+      <text x="15" y="56" fill="#10b981" font-size="9">Free, Zero API Key Required &bull; Full OSM Attribution</text>
+
+      <!-- Box 2: Audit Documents -->
+      <rect x="370" width="350" height="75" rx="8" fill="#1e293b" stroke="#334155" stroke-width="1" />
+      <text x="385" y="24" fill="#f8fafc" font-size="12" font-weight="700">Engineering Audit Repository</text>
+      <text x="385" y="42" fill="#94a3b8" font-size="10">Mandovi Scour PDF (pypdf parsed) &bull; Chambal WTP TXT</text>
+      <text x="385" y="56" fill="#38bdf8" font-size="9">Western Ghats Culvert TXT &bull; Mithi Sluice Gate TXT</text>
+
+      <!-- Box 3: LLM Providers -->
+      <rect y="85" width="720" height="65" rx="8" fill="#1e293b" stroke="#334155" stroke-width="1" />
+      <text x="15" y="108" fill="#f8fafc" font-size="12" font-weight="700">LLM Provider Bridge (Configurable)</text>
+      <text x="15" y="125" fill="#94a3b8" font-size="10">Gemini 1.5 Flash (via GEMINI_API_KEY) / OpenAI GPT-4o-mini (via OPENAI_API_KEY)</text>
+      <text x="15" y="139" fill="#f59e0b" font-size="9">Deterministic Retrieval-Only Rule Engine Active when credentials are unconfigured</text>
+    </g>
+  </g>
+
+  <!-- ================= LAYER 6: GOVERNANCE, TRUST & SAFETY ================= -->
+  <g transform="translate(40, 670)">
+    <rect width="1520" height="150" rx="12" fill="url(#cardGrad)" stroke="#1e293b" stroke-width="1.5" />
+    <rect x="15" y="15" width="1490" height="30" rx="6" fill="#f43f5e" fill-opacity="0.12" />
+    <text x="25" y="35" fill="#fb7185" font-size="13" font-weight="800">6. GOVERNANCE, EXPLAINABILITY, TRUST &amp; AUDIT TRAIL</text>
+
+    <g transform="translate(20, 58)">
+      <!-- Item 1 -->
+      <rect width="350" height="75" rx="8" fill="#1e293b" stroke="#334155" stroke-width="1" />
+      <text x="15" y="24" fill="#f8fafc" font-size="11" font-weight="700">Evidence Citations &amp; Provenance</text>
+      <text x="15" y="42" fill="#94a3b8" font-size="10">All answers cite exact document names,</text>
+      <text x="15" y="56" fill="#94a3b8" font-size="10">page numbers, and agency timestamps.</text>
+
+      <!-- Item 2 -->
+      <rect x="370" width="350" height="75" rx="8" fill="#1e293b" stroke="#334155" stroke-width="1" />
+      <text x="385" y="24" fill="#f8fafc" font-size="11" font-weight="700">Fact vs Recommendation Split</text>
+      <text x="385" y="42" fill="#94a3b8" font-size="10">Empirical telemetry is strictly separated</text>
+      <text x="385" y="56" fill="#94a3b8" font-size="10">from proposed engineering remediation.</text>
+
+      <!-- Item 3 -->
+      <rect x="740" width="350" height="75" rx="8" fill="#1e293b" stroke="#334155" stroke-width="1" />
+      <text x="755" y="24" fill="#f8fafc" font-size="11" font-weight="700">Human Outcome Verification</text>
+      <text x="755" y="42" fill="#94a3b8" font-size="10">Interventions require sign-off verification</text>
+      <text x="755" y="56" fill="#94a3b8" font-size="10">before risk scores are credited as mitigated.</text>
+
+      <!-- Item 4 -->
+      <rect x="1110" width="370" height="75" rx="8" fill="#1e293b" stroke="#334155" stroke-width="1" />
+      <text x="1125" y="24" fill="#f8fafc" font-size="11" font-weight="700">Prototype Disclaimer Enforced</text>
+      <text x="1125" y="42" fill="#94a3b8" font-size="10">Synthetic records explicitly labeled;</text>
+      <text x="1125" y="56" fill="#f59e0b" font-size="10">never represented as live government telemetry.</text>
+    </g>
+  </g>
+
+  <!-- ================= FOOTER LEGEND ================= -->
+  <g transform="translate(40, 840)">
+    <rect width="1520" height="65" rx="10" fill="#0f172a" stroke="#1e293b" stroke-width="1" />
+    <text x="25" y="38" fill="#94a3b8" font-size="12" font-weight="700">IMPLEMENTATION LEGEND:</text>
+
+    <rect x="230" y="22" width="16" height="16" rx="4" fill="#10b981" />
+    <text x="255" y="35" fill="#f8fafc" font-size="11" font-weight="600">Fully Implemented &amp; Tested</text>
+
+    <rect x="490" y="22" width="16" height="16" rx="4" fill="#f59e0b" />
+    <text x="515" y="35" fill="#f8fafc" font-size="11" font-weight="600">Synthetic Prototype Data (Labeled)</text>
+
+    <rect x="780" y="22" width="16" height="16" rx="4" fill="#818cf8" />
+    <text x="805" y="35" fill="#f8fafc" font-size="11" font-weight="600">Configurable External Integration (LLM/Tiles)</text>
+
+    <text x="1260" y="38" fill="#64748b" font-size="11">AAYAM &bull; Deepmind Hackathon Prototype</text>
+  </g>
+</svg>
