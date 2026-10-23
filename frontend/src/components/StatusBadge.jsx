@@ -1,6 +1,9 @@
 import React from 'react';
+import { useLanguage } from '../context/LanguageContext';
 
 export default function StatusBadge({ status, size = 'sm' }) {
+  const { t } = useLanguage();
+
   const getStyles = (st) => {
     switch (st) {
       case 'Critical Attention':
@@ -40,6 +43,31 @@ export default function StatusBadge({ status, size = 'sm' }) {
     }
   };
 
+  const getStatusLabel = (st) => {
+    switch (st) {
+      case 'Critical Attention':
+        return t('status.criticalAttention', 'Critical Attention');
+      case 'Critical':
+        return t('status.critical', 'Critical');
+      case 'High Risk':
+        return t('status.highRisk', 'High Risk');
+      case 'High':
+        return t('status.high', 'High');
+      case 'Requires Inspection':
+        return t('status.requiresInspection', 'Requires Inspection');
+      case 'Moderate':
+        return t('status.moderate', 'Moderate');
+      case 'Operational':
+        return t('status.operational', 'Operational');
+      case 'Low':
+        return t('status.low', 'Low');
+      case 'Under Maintenance':
+        return t('status.underMaintenance', 'Under Maintenance');
+      default:
+        return st || t('status.unknown', 'Unknown');
+    }
+  };
+
   const config = getStyles(status);
   const sizeClasses = size === 'xs' ? 'text-xs px-2 py-0.5' : 'text-xs px-2.5 py-1';
 
@@ -48,7 +76,7 @@ export default function StatusBadge({ status, size = 'sm' }) {
       className={`inline-flex items-center gap-1.5 font-medium rounded-full border ${config.bg} ${sizeClasses}`}
     >
       <span className={`w-1.5 h-1.5 rounded-full ${config.dot}`} />
-      <span>{status || 'Unknown'}</span>
+      <span>{getStatusLabel(status)}</span>
     </span>
   );
 }

@@ -1,15 +1,15 @@
 from typing import List, Optional
 from datetime import datetime
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
 
 
 class HealthResponse(BaseModel):
-    status: str = Field(..., example="healthy")
-    app_name: str = Field(..., example="AAYAM Infrastructure Intelligence API")
-    environment: str = Field(..., example="development")
+    status: str = Field(..., json_schema_extra={"example": "healthy"})
+    app_name: str = Field(..., json_schema_extra={"example": "AAYAM Infrastructure Intelligence API"})
+    environment: str = Field(..., json_schema_extra={"example": "development"})
     timestamp: str
-    database: str = Field(..., example="connected")
-    total_assets: int = Field(..., example=12)
+    database: str = Field(..., json_schema_extra={"example": "connected"})
+    total_assets: int = Field(..., json_schema_extra={"example": 12})
     mock_mode: bool = True
     disclaimer: str = "Hackathon prototype with synthetic/mock data. Never use for operational life-safety decisions."
 
@@ -33,12 +33,15 @@ class AssetBase(BaseModel):
     description: Optional[str] = None
 
 
+class AssetCreate(AssetBase):
+    """Schema for creating an infrastructure asset."""
+    pass
+
 class AssetResponse(AssetBase):
     created_at: Optional[str] = None
     updated_at: Optional[str] = None
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class AssetListResponse(BaseModel):
@@ -83,6 +86,29 @@ class EvidenceItem(BaseModel):
     excerpt: Optional[str] = None
     citation_label: Optional[str] = None
     confidence_score: Optional[float] = None
+    filename: Optional[str] = None
+    source_file: Optional[str] = None
+    file_type: Optional[str] = None
+    chunk_id: Optional[str] = None
+    relevance_score: Optional[float] = None
+
+
+class DocumentPage(BaseModel):
+    page_number: int
+    text: str
+
+
+class DocumentDetailResponse(BaseModel):
+    document_name: str
+    filename: str
+    file_type: str
+    total_pages: int
+    source_agency: Optional[str] = None
+    timestamp: Optional[str] = None
+    asset_id: Optional[str] = None
+    content: str
+    pages: List[DocumentPage] = []
+    status: str = "available"
 
 
 class CopilotAskResponse(BaseModel):
@@ -160,6 +186,14 @@ class InspectionVerifyRequest(BaseModel):
     verification_notes: str = Field(..., description="Verification observations confirming repair efficacy")
     verification_date: Optional[str] = Field(None, description="Date verified in YYYY-MM-DD")
     verifier_name: Optional[str] = Field("Senior Verification Engineer", description="Signing authority")
+    outcome: Optional[str] = Field(
+        "Remediation Successful",
+        description="Explicit outcome decision: 'Remediation Successful', 'Remediation Unsuccessful', or 'Further Assessment Required'",
+    )
+    actual_action_taken: Optional[str] = Field(
+        None,
+        description="Actual intervention details if not previously recorded on inspection",
+    )
 
 
 class InspectionResponse(BaseModel):
@@ -175,11 +209,11 @@ class InspectionResponse(BaseModel):
     evidence_references: Optional[str] = None
     verification_notes: Optional[str] = None
     verification_date: Optional[str] = None
+    verification_outcome: Optional[str] = None
     created_at: Optional[str] = None
     updated_at: Optional[str] = None
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class TimelineEvent(BaseModel):
@@ -192,4 +226,36 @@ class TimelineEvent(BaseModel):
     actor: Optional[str] = None
 
 
+# ==============================================================================
+# AUTHENTICATION & USER SCHEMAS
+# ==============================================================================
 
+class UserLoginRequest(BaseModel):
+    username: str = Field(..., description="Username or email address")
+    password: str = Field(..., min_length=1, description="Account password")
+
+
+class UserRegisterRequest(BaseModel):
+    username: str = Field(..., min_length=3, max_length=50, description="Username (3-50 characters, letters, digits, '.', '-', '_')")
+    email: str = Field(..., description="Valid email address")
+    full_name: str = Field(..., min_length=1, max_length=255, description="Full name")
+    password: str = Field(..., min_length=8, description="Password (at least 8 characters, maximum 72 bytes)")
+    confirm_password: str = Field(..., min_length=8, description="Password confirmation matching password")
+
+
+class UserResponse(BaseModel):
+    id: str
+    username: str
+    email: str
+    full_name: str
+    role: str
+    is_active: bool = True
+    created_at: Optional[str] = None
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class TokenResponse(BaseModel):
+    access_token: str
+    token_type: str = "bearer"
+    user: UserResponse

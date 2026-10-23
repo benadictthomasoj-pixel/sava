@@ -24,7 +24,19 @@ export default {
         }
       },
       fontFamily: {
-        sans: ['Inter', 'system-ui', '-apple-system', 'sans-serif'],
+        sans: [
+          'Inter',
+          'Noto Sans Devanagari',
+          'Noto Sans Tamil',
+          'Noto Sans Telugu',
+          'Noto Sans Malayalam',
+          'Noto Sans Kannada',
+          'system-ui',
+          '-apple-system',
+          'BlinkMacSystemFont',
+          'Segoe UI',
+          'sans-serif',
+        ],
         mono: ['JetBrains Mono', 'Menlo', 'monospace'],
       }
     },

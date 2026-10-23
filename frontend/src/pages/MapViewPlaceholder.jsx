@@ -15,6 +15,7 @@ import {
   CheckCircle2,
 } from 'lucide-react';
 import StatusBadge from '../components/StatusBadge';
+import { useLanguage } from '../context/LanguageContext';
 
 // Helper to create clean custom HTML pin markers for Leaflet with pulsing effects
 function createMarkerIcon(status, isSelected = false) {
@@ -90,9 +91,12 @@ export default function MapViewPlaceholder({
   selectedAsset,
   onSelectAsset,
   onNavigate,
+  isDemo = false,
 }) {
+  const { t } = useLanguage();
   const [statusFilter, setStatusFilter] = useState('All');
   const [searchQuery, setSearchQuery] = useState('');
+  const [tileError, setTileError] = useState(false);
 
   // Default center roughly on central India
   const defaultCenter = [21.5, 78.9629];
@@ -132,14 +136,14 @@ export default function MapViewPlaceholder({
           <div className="flex items-center gap-2">
             <MapPin className="w-4 h-4 text-cyan-400" />
             <h2 className="text-sm font-bold text-white">
-              Geospatial Infrastructure Intelligence Map
+              {t('map.mapTitle', 'Geospatial Infrastructure Intelligence Map')}
             </h2>
             <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-cyan-500/10 text-cyan-400 border border-cyan-500/20">
-              OpenStreetMap Basemap
+              {t('map.osmBasemap', 'OpenStreetMap Basemap')}
             </span>
           </div>
           <p className="text-xs text-slate-400">
-            Monitoring {assets.length} registered public infrastructure assets across Indian states
+            {t('map.monitoringCount', 'Monitoring {count} registered public infrastructure assets across Indian states', { count: assets.length })}
           </p>
         </div>
 
@@ -152,7 +156,7 @@ export default function MapViewPlaceholder({
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search map assets..."
+              placeholder={t('map.searchMapPlaceholder', 'Search map assets...')}
               className="w-full pl-8 pr-3 py-1.5 bg-slate-950 border border-slate-800 rounded-lg text-xs text-white placeholder-slate-400 focus:outline-none focus:border-cyan-500"
             />
           </div>
@@ -167,7 +171,7 @@ export default function MapViewPlaceholder({
                   : 'text-slate-400 hover:text-slate-200'
               }`}
             >
-              All ({assets.length})
+              {t('map.filterAll', 'All ({count})', { count: assets.length })}
             </button>
             <button
               onClick={() => setStatusFilter('Critical')}
@@ -178,7 +182,7 @@ export default function MapViewPlaceholder({
               }`}
             >
               <span className="w-2 h-2 rounded-full bg-rose-500" />
-              <span>Critical ({criticalCount})</span>
+              <span>{t('map.filterCritical', 'Critical ({count})', { count: criticalCount })}</span>
             </button>
             <button
               onClick={() => setStatusFilter('Inspection')}
@@ -189,7 +193,7 @@ export default function MapViewPlaceholder({
               }`}
             >
               <span className="w-2 h-2 rounded-full bg-amber-500" />
-              <span>Inspection ({inspectionCount})</span>
+              <span>{t('map.filterInspection', 'Inspection ({count})', { count: inspectionCount })}</span>
             </button>
             <button
               onClick={() => setStatusFilter('Operational')}
@@ -200,7 +204,7 @@ export default function MapViewPlaceholder({
               }`}
             >
               <span className="w-2 h-2 rounded-full bg-emerald-500" />
-              <span>Operational ({operationalCount})</span>
+              <span>{t('map.filterOperational', 'Operational ({count})', { count: operationalCount })}</span>
             </button>
           </div>
         </div>
@@ -211,11 +215,11 @@ export default function MapViewPlaceholder({
         {loading ? (
           <div className="absolute inset-0 bg-slate-950 flex flex-col items-center justify-center space-y-3 z-[1000]">
             <div className="w-10 h-10 border-3 border-cyan-500 border-t-transparent rounded-full animate-spin" />
-            <p className="text-xs text-slate-400">Loading geospatial asset telemetry...</p>
+            <p className="text-xs text-slate-400">{t('map.loadingTelemetry', 'Loading geospatial asset telemetry...')}</p>
           </div>
         ) : error ? (
           <div className="absolute inset-0 bg-slate-950 flex flex-col items-center justify-center p-6 text-center space-y-2 z-[1000]">
-            <p className="text-sm font-bold text-rose-400">Map Loading Error</p>
+            <p className="text-sm font-bold text-rose-400">{t('map.errorTitle', 'Map Loading Error')}</p>
             <p className="text-xs text-slate-400 font-mono">{error}</p>
           </div>
         ) : (
@@ -230,7 +234,23 @@ export default function MapViewPlaceholder({
               attribution='&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer">OpenStreetMap</a> contributors'
               url="https://tile.openstreetmap.org/{z}/{x}/{y}.png"
               maxZoom={19}
+              eventHandlers={{
+                tileerror: () => setTileError(true),
+              }}
             />
+
+            {/* Offline / Tile Error Banner */}
+            {tileError && (
+              <div
+                data-testid="tile-fallback-notice"
+                className="absolute top-4 right-4 z-[1000] p-3 rounded-lg bg-slate-900/95 border border-amber-500/40 text-amber-200 text-xs flex items-center gap-2 max-w-sm shadow-xl backdrop-blur"
+              >
+                <AlertOctagon className="w-4 h-4 shrink-0 text-amber-400" />
+                <span>
+                  {t('map.tileFallbackNotice', 'Map tile service is currently unreachable. Displaying plotted demo asset coordinates on the vector grid fallback.')}
+                </span>
+              </div>
+            )}
 
             {/* Controller for smooth recentering */}
             <MapController assets={filteredAssets} selectedAsset={selectedAsset} />
@@ -267,16 +287,16 @@ export default function MapViewPlaceholder({
                       {/* Location & Metadata */}
                       <div className="space-y-1 text-slate-600 text-[11px]">
                         <p>
-                          <strong className="text-slate-800">Category:</strong> {asset.category}
+                          <strong className="text-slate-800">{t('common.category', 'Category')}:</strong> {asset.category}
                         </p>
                         <p>
-                          <strong className="text-slate-800">Location:</strong> {asset.district}, {asset.state}
+                          <strong className="text-slate-800">{t('common.location', 'Location')}:</strong> {asset.district}, {asset.state}
                         </p>
                         <p>
-                          <strong className="text-slate-800">GPS:</strong> {asset.latitude.toFixed(4)}°N, {asset.longitude.toFixed(4)}°E
+                          <strong className="text-slate-800">{t('map.gps', 'GPS:')}</strong> {asset.latitude.toFixed(4)}°N, {asset.longitude.toFixed(4)}°E
                         </p>
                         <p>
-                          <strong className="text-slate-800">Risk Score:</strong>{' '}
+                          <strong className="text-slate-800">{t('dashboard.riskScore', 'Risk Score')}:</strong>{' '}
                           <span
                             className={`font-mono font-bold ${
                               asset.risk_score >= 80
@@ -288,14 +308,14 @@ export default function MapViewPlaceholder({
                           >
                             {asset.risk_score} / 100
                           </span>{' '}
-                          &bull; Health: {asset.health_index}%
+                          &bull; {t('map.health', 'Health:')} {asset.health_index}%
                         </p>
                       </div>
 
                       {/* Flagged Triggers Preview */}
                       {asset.flagged_reasons && asset.flagged_reasons.length > 0 && (
                         <div className="p-1.5 rounded bg-rose-50 border border-rose-200 text-[10px] text-rose-800 leading-tight">
-                          <strong>Active Flag:</strong> {asset.flagged_reasons[0]}
+                          <strong>{t('map.activeFlag', 'Active Flag:')}</strong> {asset.flagged_reasons[0]}
                         </div>
                       )}
 
@@ -310,7 +330,7 @@ export default function MapViewPlaceholder({
                           className="flex-1 py-1 px-2 rounded bg-cyan-600 hover:bg-cyan-700 text-white font-semibold text-[11px] transition-colors flex items-center justify-center gap-1"
                         >
                           <Activity className="w-3 h-3" />
-                          <span>Heartbeat</span>
+                          <span>{t('map.heartbeat', 'Heartbeat')}</span>
                         </button>
                         <button
                           type="button"
@@ -319,9 +339,9 @@ export default function MapViewPlaceholder({
                             if (onNavigate) onNavigate('registry');
                           }}
                           className="py-1 px-2 rounded bg-slate-200 hover:bg-slate-300 text-slate-800 font-semibold text-[11px] transition-colors flex items-center gap-1"
-                          title="View Asset in Registry"
+                          title={t('map.viewInRegistry', 'View Asset in Registry')}
                         >
-                          <span>Registry</span>
+                          <span>{t('map.registry', 'Registry')}</span>
                           <ExternalLink className="w-2.5 h-2.5" />
                         </button>
                       </div>
@@ -338,28 +358,31 @@ export default function MapViewPlaceholder({
           <div className="flex items-center justify-between text-cyan-400 font-bold text-[11px]">
             <span className="flex items-center gap-1">
               <Info className="w-3.5 h-3.5" />
-              <span>GIS Asset Telemetry Layer</span>
+              <span>{isDemo ? t('demo.gisNotice', 'Simulated Demo GIS Telemetry') : t('map.legendTitle', 'GIS Asset Telemetry Layer')}</span>
             </span>
             <span className="text-[10px] font-mono text-slate-400">
-              {filteredAssets.length} Visible
+              {isDemo
+                ? t('demo.visibleCount', '{count} Demo Visible', { count: filteredAssets.length })
+                : t('map.visibleCount', '{count} Visible', { count: filteredAssets.length })}
             </span>
           </div>
           <p className="text-[11px] text-slate-400 leading-snug">
-            All markers represent synthetic prototype assets plotted on real coordinates across India. 
-            Tile service powered by standard OpenStreetMap.
+            {isDemo
+              ? t('map.legendDescDemo', 'Displaying 3 synthetic demo assets with isolated simulated coordinates. No live database connection.')
+              : t('map.legendDescLive', 'All markers represent prototype assets plotted on real coordinates across India. Tile service powered by standard OpenStreetMap.')}
           </p>
           <div className="flex items-center gap-3 pt-1 border-t border-slate-800/80 text-[10px]">
             <span className="flex items-center gap-1">
               <span className="w-2 h-2 rounded-full bg-rose-500" />
-              <span className="text-slate-300">Critical</span>
+              <span className="text-slate-300">{t('status.critical', 'Critical')}</span>
             </span>
             <span className="flex items-center gap-1">
               <span className="w-2 h-2 rounded-full bg-amber-500" />
-              <span className="text-slate-300">Inspection Due</span>
+              <span className="text-slate-300">{t('dashboard.inspectionDue', 'Inspection Due')}</span>
             </span>
             <span className="flex items-center gap-1">
               <span className="w-2 h-2 rounded-full bg-emerald-500" />
-              <span className="text-slate-300">Operational</span>
+              <span className="text-slate-300">{t('status.operational', 'Operational')}</span>
             </span>
           </div>
         </div>

@@ -2,7 +2,7 @@ from datetime import datetime, timezone
 from contextlib import asynccontextmanager
 from typing import Optional, List
 import logging
-
+import json
 from fastapi import FastAPI, Depends, HTTPException, Query, status
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
@@ -10,8 +10,11 @@ from sqlalchemy import or_
 
 from app.config import APP_NAME, ENV, CORS_ORIGINS
 from app.database import get_db, Base, engine
-from app.models import Asset, Inspection
+from app.models import Asset, Inspection, User, parse_flagged_reasons, serialize_flagged_reasons
+import re
+import uuid
 from app.schemas import (
+    AssetCreate,
     HealthResponse,
     AssetResponse,
     AssetListResponse,
@@ -24,12 +27,23 @@ from app.schemas import (
     InspectionVerifyRequest,
     InspectionResponse,
     TimelineEvent,
+    DocumentDetailResponse,
+    UserLoginRequest,
+    UserRegisterRequest,
+    UserResponse,
+    TokenResponse,
 )
-from app.copilot_service import query_copilot_evidence
-from app.heartbeat_engine import calculate_digital_heartbeat
+from app.security import verify_password, create_access_token, hash_password
+from app.dependencies import get_current_user, require_admin
+from app.document_store import evidence_store
+from app.copilot_service import query_copilot_evidence, query_copilot_evidence_async
+from app.heartbeat_engine import calculate_digital_heartbeat, determine_asset_status
+from app.database import ensure_schema_compatibility, engine
 from app.seed import init_db
 
 logging.basicConfig(level=logging.INFO)
+from app.copilot_service import install_sensitive_param_filters
+install_sensitive_param_filters()
 logger = logging.getLogger("aayam.api")
 
 
@@ -40,6 +54,7 @@ async def lifespan(app: FastAPI):
     Initializes database tables and sample mock records if the database is empty.
     """
     logger.info("AAYAM API starting up. Verifying database and seed data...")
+    ensure_schema_compatibility(engine)
     init_db(force_reseed=False)
     yield
     logger.info("AAYAM API shutting down.")
@@ -106,6 +121,182 @@ def get_health(db: Session = Depends(get_db)):
         mock_mode=True,
         disclaimer="Hackathon prototype with synthetic/mock data. Never use for operational life-safety decisions.",
     )
+
+
+# ==============================================================================
+# AUTHENTICATION & ACCESS CONTROL FOUNDATION ENDPOINTS
+# ==============================================================================
+
+EMAIL_REGEX = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
+USERNAME_REGEX = re.compile(r"^[a-zA-Z0-9_\-\.]{3,50}$")
+
+
+@app.post(
+    "/api/auth/register",
+    response_model=UserResponse,
+    status_code=status.HTTP_201_CREATED,
+    tags=["Authentication"],
+    summary="Public self-registration for Common Users",
+)
+def register_user(payload: UserRegisterRequest, db: Session = Depends(get_db)):
+    """
+    Public self-registration for Common Users.
+    Enforces that:
+    1. Every publicly registered account is assigned role='common_user'. Requests attempting
+       to specify or escalate to 'admin' privileges are rejected / overridden.
+    2. Username and email must be unique across the platform.
+    3. Passwords must be at least 8 characters long, maximum 72 bytes, and match confirm_password.
+    4. Passwords are securely hashed with bcrypt (12 salt rounds).
+    5. Required fields are validated; clear HTTP 400 / 409 errors returned without leaking DB internals.
+
+    NOTE: Email verification and password recovery workflows are not implemented in this version.
+    """
+    clean_username = payload.username.strip()
+    clean_email = payload.email.strip().lower()
+    clean_fullname = payload.full_name.strip()
+
+    # 1. Validate username format
+    if not USERNAME_REGEX.match(clean_username):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid username format. Must be 3-50 characters consisting of letters, digits, '.', '-', or '_'.",
+        )
+
+    # 2. Validate email format
+    if not EMAIL_REGEX.match(clean_email):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid email format. Please provide a valid email address.",
+        )
+
+    # 3. Validate full name
+    if not clean_fullname:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Full name cannot be empty.",
+        )
+
+    # 4. Validate password and confirmation
+    if payload.password != payload.confirm_password:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Passwords do not match.",
+        )
+
+    if len(payload.password) < 8:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Password must be at least 8 characters long.",
+        )
+
+    password_bytes = payload.password.encode("utf-8")
+    if len(password_bytes) > 72:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Password must not exceed 72 bytes.",
+        )
+
+    # 5. Check uniqueness (Username and Email)
+    existing_username = db.query(User).filter(User.username == clean_username).first()
+    if existing_username:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"Username '{clean_username}' is already registered. Please choose another username.",
+        )
+
+    existing_email = db.query(User).filter(User.email == clean_email).first()
+    if existing_email:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"Email '{clean_email}' is already registered. Please sign in or use another email address.",
+        )
+
+    # 6. Hash password safely
+    password_hash = hash_password(payload.password)
+    user_id = f"USER-COM-{uuid.uuid4().hex[:8].upper()}"
+
+    # 7. Create user with strictly enforced 'common_user' role
+    new_user = User(
+        id=user_id,
+        username=clean_username,
+        email=clean_email,
+        full_name=clean_fullname,
+        password_hash=password_hash,
+        role="common_user",
+        is_active=True,
+        created_at=datetime.now(timezone.utc),
+    )
+
+    db.add(new_user)
+    db.commit()
+    db.refresh(new_user)
+
+    logger.info(f"Registered new public common user: {new_user.username} ({new_user.id})")
+    return UserResponse(**new_user.to_dict())
+
+
+@app.post(
+    "/api/auth/login",
+    response_model=TokenResponse,
+    tags=["Authentication"],
+    summary="Authenticate user and issue signed JWT access token",
+)
+def login(payload: UserLoginRequest, db: Session = Depends(get_db)):
+    """
+    Authenticates a user via username or email address and password.
+    Validates password hash using bcrypt.
+    Returns a signed, expiring JWT access token and user metadata.
+    Rejects inactive accounts with HTTP 403 Forbidden.
+    """
+    clean_identifier = payload.username.strip()
+    user = (
+        db.query(User)
+        .filter(or_(User.username == clean_identifier, User.email == clean_identifier.lower()))
+        .first()
+    )
+
+    if not user or not verify_password(payload.password, user.password_hash):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid username or password.",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    if not user.is_active:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="User account is deactivated. Access denied.",
+        )
+
+    access_token = create_access_token(
+        data={
+            "sub": user.username,
+            "username": user.username,
+            "role": user.role,
+            "user_id": user.id,
+        }
+    )
+
+    return TokenResponse(
+        access_token=access_token,
+        token_type="bearer",
+        user=UserResponse(**user.to_dict()),
+    )
+
+
+@app.get(
+    "/api/auth/me",
+    response_model=UserResponse,
+    tags=["Authentication"],
+    summary="Get authenticated user profile and active role",
+)
+def get_current_user_profile(current_user: User = Depends(get_current_user)):
+    """
+    Returns profile details and active role for the currently authenticated user session.
+    Requires a valid, non-expired Bearer access token in the Authorization header.
+    """
+    return UserResponse(**current_user.to_dict())
+
 
 
 @app.get(
@@ -196,6 +387,50 @@ def list_assets(
         disclaimer="Mock dataset for hackathon local prototype. Not live official government data.",
     )
 
+      
+@app.post(
+    "/api/assets",
+    response_model=AssetResponse,
+    status_code=status.HTTP_201_CREATED,
+    tags=["Assets"],
+    summary="Register a new infrastructure asset",
+)
+def create_asset(
+    payload: AssetCreate,
+    db: Session = Depends(get_db),
+    admin_user: User = Depends(require_admin),
+):
+
+    # Prevent duplicate asset IDs
+    existing_asset = (
+        db.query(Asset)
+        .filter(Asset.id == payload.id)
+        .first()
+    )
+
+    if existing_asset:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"Asset with ID '{payload.id}' already exists.",
+        )
+
+    # Create and save the asset
+    asset_data = payload.model_dump()
+    asset_data["flagged_reasons"] = serialize_flagged_reasons(asset_data.get("flagged_reasons"))
+
+    asset = Asset(**asset_data)
+    try:
+        db.add(asset)
+        db.commit()
+        db.refresh(asset)
+    except Exception as e:
+        db.rollback()
+        logger.error(f"Failed to create asset '{payload.id}': {e}")
+        raise
+
+    return AssetResponse(**asset.to_dict())
+
+
 
 @app.get(
     "/api/assets/{asset_id}",
@@ -223,12 +458,13 @@ def get_asset_by_id(asset_id: str, db: Session = Depends(get_db)):
     tags=["Copilot"],
     summary="Query AI Decision Copilot grounded in infrastructure evidence",
 )
-def ask_copilot(payload: CopilotAskRequest, db: Session = Depends(get_db)):
+async def ask_copilot(payload: CopilotAskRequest, db: Session = Depends(get_db)):
     """
     Submits an inquiry to the AI Decision Copilot.
     Validates the question, searches existing SQLite asset records,
     retrieves relevant evidence, separates observed facts from recommendations,
     and returns transparent, grounded findings without generative hallucination.
+    Supports Google Gemini, OpenAI, and Anthropic LLM synthesis with automatic fallback.
     """
     if not payload.question or not payload.question.strip():
         raise HTTPException(
@@ -236,12 +472,40 @@ def ask_copilot(payload: CopilotAskRequest, db: Session = Depends(get_db)):
             detail="Question cannot be empty. Please enter an infrastructure asset inquiry.",
         )
 
-    return query_copilot_evidence(
+    return await query_copilot_evidence_async(
         db,
         payload.question,
         asset_id_filter=payload.asset_id,
         category_filter=payload.category,
     )
+
+
+@app.get(
+    "/api/copilot/documents/{document_identifier:path}",
+    response_model=DocumentDetailResponse,
+    tags=["Copilot"],
+    summary="Retrieve verified source evidence document content and metadata",
+)
+def get_evidence_document(document_identifier: str):
+    """
+    Retrieves the actual verified supporting evidence document for inspection.
+    Returns parsed pages, metadata, and full text for indexed engineering documents.
+    Returns 404 if the document is not present in the verified evidence archive.
+    Rejects directory traversal attempts.
+    """
+    if not document_identifier or not document_identifier.strip():
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Document identifier must be specified.",
+        )
+
+    doc_info = evidence_store.get_document_content(document_identifier)
+    if not doc_info:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Source document '{document_identifier}' was not found in the verified evidence archive.",
+        )
+    return DocumentDetailResponse(**doc_info)
 
 
 # ==============================================================================
@@ -301,7 +565,12 @@ def get_asset_inspections(asset_id: str, db: Session = Depends(get_db)):
     tags=["Inspections"],
     summary="Record a new field inspection and recommended action",
 )
-def create_inspection(asset_id: str, payload: InspectionCreateRequest, db: Session = Depends(get_db)):
+def create_inspection(
+    asset_id: str,
+    payload: InspectionCreateRequest,
+    db: Session = Depends(get_db),
+    admin_user: User = Depends(require_admin),
+):
     asset = db.query(Asset).filter(Asset.id == asset_id).first()
     if not asset:
         raise HTTPException(
@@ -313,6 +582,17 @@ def create_inspection(asset_id: str, payload: InspectionCreateRequest, db: Sessi
     existing_count = db.query(Inspection).count()
     new_id = f"INSP-2026-{(existing_count + 1):03d}"
 
+    # Record authenticated administrator identity in audit field rather than trusting client-supplied identity
+    admin_identity = f"{admin_user.full_name} (@{admin_user.username})"
+    if (
+        payload.responsible_user
+        and payload.responsible_user.strip()
+        and payload.responsible_user != "Engineering Officer (Unauthenticated Prototype Session)"
+    ):
+        responsible_user_audit = f"{admin_identity} - {payload.responsible_user.strip()}"
+    else:
+        responsible_user_audit = admin_identity
+
     inspection = Inspection(
         id=new_id,
         asset_id=asset_id,
@@ -321,7 +601,7 @@ def create_inspection(asset_id: str, payload: InspectionCreateRequest, db: Sessi
         findings=payload.findings,
         recommended_action=payload.recommended_action,
         actual_action_taken=payload.actual_action_taken,
-        responsible_user=payload.responsible_user,
+        responsible_user=responsible_user_audit,
         status="Pending",
         evidence_references=payload.evidence_references,
     )
@@ -337,10 +617,11 @@ def create_inspection(asset_id: str, payload: InspectionCreateRequest, db: Sessi
     asset.risk_score = updated_hb["risk_score"]
     asset.risk_level = updated_hb["risk_tier"]
     asset.health_index = updated_hb["health_index"]
+    asset.status = determine_asset_status(asset.risk_score)
     db.commit()
     db.refresh(inspection)
 
-    logger.info(f"Recorded inspection {new_id} for asset {asset_id}. New Risk Score: {asset.risk_score}")
+    logger.info(f"Recorded inspection {new_id} for asset {asset_id}. New Risk Score: {asset.risk_score}, Status: {asset.status}")
     return InspectionResponse(**inspection.to_dict())
 
 
@@ -350,7 +631,12 @@ def create_inspection(asset_id: str, payload: InspectionCreateRequest, db: Sessi
     tags=["Inspections"],
     summary="Update inspection action status or recorded repair intervention",
 )
-def update_inspection(inspection_id: str, payload: InspectionUpdateRequest, db: Session = Depends(get_db)):
+def update_inspection(
+    inspection_id: str,
+    payload: InspectionUpdateRequest,
+    db: Session = Depends(get_db),
+    admin_user: User = Depends(require_admin),
+):
     inspection = db.query(Inspection).filter(Inspection.id == inspection_id).first()
     if not inspection:
         raise HTTPException(
@@ -358,12 +644,32 @@ def update_inspection(inspection_id: str, payload: InspectionUpdateRequest, db: 
             detail=f"Inspection record '{inspection_id}' not found.",
         )
 
+    # 1. Enforce lifecycle: terminal certified state cannot be modified
+    if inspection.status == "Verified":
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"Inspection record '{inspection_id}' is already Verified and certified. Modifications are prohibited.",
+        )
+
+    # 2. Enforce permitted state transitions
     if payload.status:
-        allowed_statuses = ["Pending", "In Progress", "Completed", "Verified"]
-        if payload.status not in allowed_statuses:
+        if payload.status == "Verified":
             raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Invalid status '{payload.status}'. Allowed values: {', '.join(allowed_statuses)}",
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Direct transition to 'Verified' via PATCH is not permitted. Please use 'POST /api/inspections/{id}/verify' to record verification notes and outcome decision.",
+            )
+
+        valid_transitions = {
+            "Pending": ["Pending", "In Progress", "Completed"],
+            "In Progress": ["In Progress", "Completed", "Pending"],
+            "Completed": ["Completed", "In Progress"],
+            "Verified": [],
+        }
+        allowed_next = valid_transitions.get(inspection.status, [])
+        if payload.status not in allowed_next:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=f"Invalid inspection status transition from '{inspection.status}' to '{payload.status}'. Allowed transitions: {', '.join(allowed_next) if allowed_next else 'None'}.",
             )
         inspection.status = payload.status
 
@@ -375,7 +681,7 @@ def update_inspection(inspection_id: str, payload: InspectionUpdateRequest, db: 
 
     db.commit()
 
-    # Recalculate parent asset heartbeat
+    # Recalculate parent asset heartbeat and synchronize status
     asset = db.query(Asset).filter(Asset.id == inspection.asset_id).first()
     if asset:
         all_inspections = db.query(Inspection).filter(Inspection.asset_id == asset.id).order_by(Inspection.inspection_date.desc()).all()
@@ -383,11 +689,18 @@ def update_inspection(inspection_id: str, payload: InspectionUpdateRequest, db: 
         asset.risk_score = updated_hb["risk_score"]
         asset.risk_level = updated_hb["risk_tier"]
         asset.health_index = updated_hb["health_index"]
+        asset.status = determine_asset_status(asset.risk_score)
         db.commit()
 
     db.refresh(inspection)
     return InspectionResponse(**inspection.to_dict())
 
+
+ALLOWED_VERIFICATION_OUTCOMES = [
+    "Remediation Successful",
+    "Remediation Unsuccessful",
+    "Further Assessment Required",
+]
 
 @app.post(
     "/api/inspections/{inspection_id}/verify",
@@ -395,10 +708,20 @@ def update_inspection(inspection_id: str, payload: InspectionUpdateRequest, db: 
     tags=["Inspections"],
     summary="Record verified outcome of an engineering intervention",
 )
-def verify_inspection_outcome(inspection_id: str, payload: InspectionVerifyRequest, db: Session = Depends(get_db)):
+def verify_inspection_outcome(
+    inspection_id: str,
+    payload: InspectionVerifyRequest,
+    db: Session = Depends(get_db),
+    admin_user: User = Depends(require_admin),
+):
     """
-    Outcome verification step: Confirms that recommended interventions have been
-    physically executed and verified in the field. Updates asset health index.
+    Closed-loop outcome verification step.
+    Enforces that:
+    1. Inspection must reach 'Completed' state before verification.
+    2. Already verified inspections cannot be re-verified (terminal state).
+    3. Outcome decision explicitly distinguishes success, failure, or further assessment.
+    4. Actual intervention details must be documented for successful remediation.
+    5. Parent asset health index, risk score, and status are consistently updated.
     """
     inspection = db.query(Inspection).filter(Inspection.id == inspection_id).first()
     if not inspection:
@@ -407,17 +730,58 @@ def verify_inspection_outcome(inspection_id: str, payload: InspectionVerifyReque
             detail=f"Inspection record '{inspection_id}' not found.",
         )
 
+    # 1. Reject re-verification of already verified records
+    if inspection.status == "Verified":
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"Inspection record '{inspection_id}' is already Verified and certified. Re-verification is not permitted.",
+        )
+
+    # 2. Reject verification if inspection has not reached Completed state
+    if inspection.status != "Completed":
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"Cannot verify inspection in '{inspection.status}' state. Inspection must reach 'Completed' state with documented findings and actions before outcome verification.",
+        )
+
+    # 3. Validate outcome decision
+    outcome = payload.outcome or "Remediation Successful"
+    if outcome not in ALLOWED_VERIFICATION_OUTCOMES:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Invalid verification outcome '{outcome}'. Allowed outcomes: {', '.join(ALLOWED_VERIFICATION_OUTCOMES)}.",
+        )
+
+    # 4. Update actual_action_taken if supplied in payload
+    if payload.actual_action_taken and payload.actual_action_taken.strip():
+        inspection.actual_action_taken = payload.actual_action_taken.strip()
+
+    # 5. Require actual intervention details when certifying successful remediation
+    if outcome == "Remediation Successful":
+        if not (inspection.actual_action_taken and inspection.actual_action_taken.strip()):
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Actual intervention details ('actual_action_taken') must be documented before certifying successful remediation.",
+            )
+
     verification_date = payload.verification_date or datetime.now(timezone.utc).strftime("%Y-%m-%d")
 
+    # Record authenticated administrator identity in verification audit field rather than trusting client-supplied identity
+    admin_identity = f"{admin_user.full_name} (@{admin_user.username})"
+    if payload.verifier_name and payload.verifier_name.strip():
+        verifier_display = f"{admin_identity} [{payload.verifier_name.strip()}]"
+    else:
+        verifier_display = admin_identity
+
     inspection.status = "Verified"
+    inspection.verification_outcome = outcome
     inspection.verification_notes = payload.verification_notes
     inspection.verification_date = verification_date
-    if payload.verifier_name:
-        inspection.responsible_user = f"{inspection.responsible_user} | Verified by: {payload.verifier_name}"
+    inspection.responsible_user = f"{inspection.responsible_user} | Verified by: {verifier_display} ({outcome})"
 
     db.commit()
 
-    # Recalculate parent asset heartbeat reflecting verified intervention
+    # 6. Recalculate parent asset heartbeat and synchronize status consistently
     asset = db.query(Asset).filter(Asset.id == inspection.asset_id).first()
     if asset:
         all_inspections = db.query(Inspection).filter(Inspection.asset_id == asset.id).order_by(Inspection.inspection_date.desc()).all()
@@ -425,15 +789,11 @@ def verify_inspection_outcome(inspection_id: str, payload: InspectionVerifyReque
         asset.risk_score = updated_hb["risk_score"]
         asset.risk_level = updated_hb["risk_tier"]
         asset.health_index = updated_hb["health_index"]
-        # If risk dropped significantly, update status
-        if asset.risk_score < 40.0:
-            asset.status = "Operational"
-        elif asset.risk_score < 60.0:
-            asset.status = "Requires Inspection"
+        asset.status = determine_asset_status(asset.risk_score)
         db.commit()
 
     db.refresh(inspection)
-    logger.info(f"Verified outcome for inspection {inspection_id}. Asset {asset.id} updated risk: {asset.risk_score}")
+    logger.info(f"Verified outcome '{outcome}' for inspection {inspection_id}. Asset {asset.id} updated risk: {asset.risk_score}, status: {asset.status}")
     return InspectionResponse(**inspection.to_dict())
 
 

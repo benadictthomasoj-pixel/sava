@@ -17,17 +17,162 @@ import {
   Layers,
   BookOpen,
   Bookmark,
+  Cpu,
+  Info,
 } from 'lucide-react';
 import { askCopilot } from '../services/api';
+import { askDemoCopilot } from '../demo/demoService';
 import StatusBadge from '../components/StatusBadge';
+import EvidenceViewerModal from '../components/EvidenceViewerModal';
+import { useLanguage } from '../context/LanguageContext';
 
-export default function CopilotPlaceholder({ assets = [], onNavigate }) {
+/**
+ * Parses and formats inline bold text and citation tags like [Ref 1], [Ref 2].
+ * Makes citations interactive triggers that open the supporting Evidence Viewer.
+ */
+function renderInlineContent(content, onOpenCitation) {
+  if (!content) return null;
+  const regex = /(\*\*.*?\*\*|\[Ref\s*\d+\])/g;
+  const parts = content.split(regex);
+
+  return parts.map((part, idx) => {
+    if (!part) return null;
+    if (part.startsWith('**') && part.endsWith('**')) {
+      return (
+        <strong key={idx} className="font-semibold text-white">
+          {part.slice(2, -2)}
+        </strong>
+      );
+    }
+    if (/^\[Ref\s*\d+\]$/.test(part)) {
+      const refLabel = part.replace(/[\[\]]/g, '').trim();
+      return (
+        <button
+          key={idx}
+          type="button"
+          onClick={() => onOpenCitation && onOpenCitation(refLabel)}
+          className="inline-flex items-center gap-1 px-1.5 py-0.5 mx-1 rounded text-[10px] font-mono font-bold bg-cyan-950/90 hover:bg-cyan-900 text-cyan-300 border border-cyan-800/80 hover:border-cyan-400 shadow-sm align-baseline transition-all cursor-pointer hover:scale-105 active:scale-95"
+          title={`Click to inspect verified supporting evidence for ${part}`}
+        >
+          <BookOpen className="w-2.5 h-2.5" />
+          <span>{part}</span>
+        </button>
+      );
+    }
+    return <span key={idx}>{part}</span>;
+  });
+}
+
+/**
+ * Clean markdown-aware renderer for technical synthesis answers with interactive citations
+ */
+function MarkdownAnswer({ text, onOpenCitation }) {
+  if (!text) return null;
+
+  const lines = text.split('\n');
+  const elements = [];
+  let inList = false;
+  let currentList = [];
+
+  const flushList = () => {
+    if (inList && currentList.length > 0) {
+      elements.push(
+        <ul key={`list-${elements.length}`} className="space-y-1.5 my-2">
+          {currentList}
+        </ul>
+      );
+      currentList = [];
+      inList = false;
+    }
+  };
+
+  lines.forEach((line, index) => {
+    const trimmed = line.trim();
+
+    if (!trimmed) {
+      flushList();
+      return;
+    }
+
+    if (trimmed.startsWith('####')) {
+      flushList();
+      elements.push(
+        <h5 key={index} className="text-xs font-bold uppercase tracking-wider text-cyan-400 mt-3 mb-1">
+          {renderInlineContent(trimmed.replace(/^####\s*/, ''), onOpenCitation)}
+        </h5>
+      );
+    } else if (trimmed.startsWith('###')) {
+      flushList();
+      elements.push(
+        <h4 key={index} className="text-sm font-bold text-white mt-3 mb-1.5 border-b border-slate-800 pb-1">
+          {renderInlineContent(trimmed.replace(/^###\s*/, ''), onOpenCitation)}
+        </h4>
+      );
+    } else if (trimmed.startsWith('>')) {
+      flushList();
+      elements.push(
+        <blockquote key={index} className="p-3 my-2 rounded-lg bg-slate-900/90 border-l-2 border-cyan-500 text-xs text-slate-200 italic leading-relaxed">
+          {renderInlineContent(trimmed.replace(/^>\s*/, ''), onOpenCitation)}
+        </blockquote>
+      );
+    } else if (trimmed.startsWith('- ') || trimmed.startsWith('* ')) {
+      inList = true;
+      currentList.push(
+        <li key={index} className="flex items-start gap-2 text-xs text-slate-200 leading-relaxed">
+          <span className="w-1.5 h-1.5 rounded-full bg-cyan-400 mt-1.5 shrink-0" />
+          <div className="flex-1">{renderInlineContent(trimmed.slice(2), onOpenCitation)}</div>
+        </li>
+      );
+    } else {
+      flushList();
+      elements.push(
+        <p key={index} className="text-xs text-slate-200 leading-relaxed mb-2">
+          {renderInlineContent(trimmed, onOpenCitation)}
+        </p>
+      );
+    }
+  });
+
+  flushList();
+
+  return <div className="space-y-1">{elements}</div>;
+}
+
+export default function CopilotPlaceholder({ assets = [], onNavigate, isDemo = false }) {
+  const { t } = useLanguage();
   const [inputValue, setInputValue] = useState('');
   const [selectedAssetScope, setSelectedAssetScope] = useState('ALL');
   const [activeQuery, setActiveQuery] = useState('');
   const [response, setResponse] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+
+  // Evidence Viewer Modal State
+  const [viewerOpen, setViewerOpen] = useState(false);
+  const [selectedCitationLabel, setSelectedCitationLabel] = useState('Ref 1');
+
+  const handleOpenCitation = (label) => {
+    setSelectedCitationLabel(label || 'Ref 1');
+    setViewerOpen(true);
+  };
+
+  const demoPrompts = [
+    {
+      title: 'Mandovi Estuary Bridge (PDF)',
+      prompt: 'What is the structural risk status of the Mandovi Estuary Memorial Bridge?',
+      previewHint: 'PDF Doc & Sonar: -4.20m foundation scour cavity & riprap armor plan',
+    },
+    {
+      title: 'Chambal Valley WTP (PDF)',
+      prompt: 'Are there any anomalies or maintenance requirements for the Chambal Valley Water Treatment Plant?',
+      previewHint: 'PDF Doc & SCADA: 1.62 mm/s RMS vibration (ISO 10816 Zone A) & 0.38 NTU turbidity',
+    },
+    {
+      title: 'Kazhakootam Skyway (PDF)',
+      prompt: 'Why is the Kazhakootam Skyway Corridor flagged for inspection?',
+      previewHint: 'PDF Doc & Drone: 45-day overdue bearing audit & Span S-12 joint debonding',
+    },
+  ];
 
   const samplePrompts = [
     {
@@ -47,6 +192,8 @@ export default function CopilotPlaceholder({ assets = [], onNavigate }) {
     },
   ];
 
+  const activePrompts = isDemo ? demoPrompts : samplePrompts;
+
   const handleAsk = async (questionToAsk) => {
     const q = (questionToAsk !== undefined ? questionToAsk : inputValue).trim();
     if (!q) {
@@ -63,6 +210,13 @@ export default function CopilotPlaceholder({ assets = [], onNavigate }) {
       if (selectedAssetScope && selectedAssetScope !== 'ALL') {
         options.asset_id = selectedAssetScope;
       }
+
+      if (isDemo) {
+        const data = await askDemoCopilot(q, options);
+        setResponse(data);
+        return;
+      }
+
       const data = await askCopilot(q, options);
       setResponse(data);
     } catch (err) {
@@ -75,6 +229,7 @@ export default function CopilotPlaceholder({ assets = [], onNavigate }) {
   };
 
   const handleSampleClick = (promptText) => {
+    if (loading) return;
     setInputValue(promptText);
     handleAsk(promptText);
   };
@@ -91,16 +246,26 @@ export default function CopilotPlaceholder({ assets = [], onNavigate }) {
   return (
     <div className="space-y-6 max-w-5xl mx-auto">
       {/* Copilot Header */}
-      <div className="p-6 rounded-2xl bg-gradient-to-r from-slate-900 via-indigo-950/40 to-slate-900 border border-slate-800 shadow-xl space-y-2">
-        <div className="inline-flex items-center gap-2 px-2.5 py-1 rounded-full bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 text-xs font-semibold">
+      <div className={`p-6 rounded-2xl border shadow-xl space-y-2 ${
+        isDemo
+          ? 'bg-gradient-to-r from-slate-900 via-amber-950/20 to-slate-900 border-amber-500/30'
+          : 'bg-gradient-to-r from-slate-900 via-indigo-950/40 to-slate-900 border-slate-800'
+      }`}>
+        <div className={`inline-flex items-center gap-2 px-2.5 py-1 rounded-full text-xs font-semibold ${
+          isDemo
+            ? 'bg-amber-500/15 border border-amber-500/30 text-amber-300'
+            : 'bg-indigo-500/10 border border-indigo-500/20 text-indigo-400'
+        }`}>
           <Bot className="w-3.5 h-3.5" />
-          <span>Evidence-Grounded RAG Intelligence &bull; Milestone 2</span>
+          <span>{isDemo ? t('copilot.badgeDemo', 'Simulated Decision Copilot • Demo Mode') : t('copilot.badgeLive', 'Evidence-Grounded RAG Intelligence • Milestone 2')}</span>
         </div>
         <h2 className="text-xl font-extrabold text-white">
-          AAYAM AI Decision Copilot
+          {isDemo ? t('copilot.titleDemo', 'AAYAM Demo Decision Copilot') : t('copilot.titleLive', 'AAYAM AI Decision Copilot')}
         </h2>
         <p className="text-xs text-slate-300 leading-relaxed max-w-3xl">
-          Answers complex public infrastructure inquiries grounded in indexed engineering audit PDFs, technical inspection logs, and verified SQLite asset telemetry.
+          {isDemo
+            ? t('copilot.descDemo', 'Interactive intelligence demo answering infrastructure questions using synthetic engineering audit specimens. All responses and citations are simulated demonstration material.')
+            : t('copilot.descLive', 'Answers complex public infrastructure inquiries grounded in indexed engineering audit PDFs, technical inspection logs, and verified SQLite asset telemetry.')}
         </p>
       </div>
 
@@ -110,16 +275,15 @@ export default function CopilotPlaceholder({ assets = [], onNavigate }) {
           <BookOpen className="w-4 h-4 text-cyan-400 shrink-0 mt-0.5" />
           <div className="space-y-0.5">
             <p className="font-semibold text-slate-200">
-              Evidence-Grounded RAG Architecture Active
+              {t('copilot.pipelineTitle', 'Evidence-Grounded RAG Architecture Active')}
             </p>
             <p className="text-slate-400 leading-relaxed text-[11px]">
-              Hybrid retrieval indexes SQLite asset records along with certified engineering PDF/TXT audit documents. 
-              Supports external LLM synthesis when configured, with deterministic citation fallback.
+              {t('copilot.pipelineDesc', 'Hybrid retrieval indexes SQLite asset records along with certified engineering PDF/TXT audit documents. Supports external LLM synthesis when configured (Google Gemini / OpenAI), with deterministic citation fallback.')}
             </p>
           </div>
         </div>
         <span className="hidden sm:inline-block font-mono text-[10px] uppercase px-2 py-0.5 rounded bg-cyan-500/10 text-cyan-400 border border-cyan-500/20 shrink-0">
-          RAG v2.0
+          RAG v2.1
         </span>
       </div>
 
@@ -127,15 +291,15 @@ export default function CopilotPlaceholder({ assets = [], onNavigate }) {
       <div className="space-y-2.5">
         <div className="flex items-center justify-between">
           <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400">
-            Sample Verification Inquiries (Click to Ask)
+            {t('copilot.sampleInquiriesTitle', 'Sample Verification Inquiries (Click to Ask)')}
           </h3>
           <span className="text-[11px] text-slate-400 hidden sm:inline">
-            Queries live SQLite entities + indexed PDF/TXT audit documents
+            {t('copilot.sampleInquiriesSubtitle', 'Queries live SQLite entities + indexed PDF/TXT audit documents')}
           </span>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-          {samplePrompts.map((p, idx) => {
+          {activePrompts.map((p, idx) => {
             const isCurrent = activeQuery === p.prompt;
             return (
               <button
@@ -159,7 +323,7 @@ export default function CopilotPlaceholder({ assets = [], onNavigate }) {
                   "{p.prompt}"
                 </p>
                 <p className="text-[11px] text-slate-400 line-clamp-1 italic">
-                  Key evidence: {p.previewHint}
+                  {t('copilot.keyEvidencePrefix', 'Key evidence: {hint}', { hint: p.previewHint })}
                 </p>
               </button>
             );
@@ -173,7 +337,7 @@ export default function CopilotPlaceholder({ assets = [], onNavigate }) {
         <div className="p-4 border-b border-slate-800 flex items-center justify-between bg-slate-950/70">
           <div className="flex items-center gap-2">
             <Bot className="w-4 h-4 text-cyan-400" />
-            <span className="text-xs font-bold text-white">Copilot Output Window</span>
+            <span className="text-xs font-bold text-white">{t('copilot.outputWindowTitle', 'Copilot Output Window')}</span>
             {response && (
               <span className={`text-[10px] font-mono px-2 py-0.5 rounded-full border ${
                 response.evidence_sufficiency === 'sufficient'
@@ -184,9 +348,22 @@ export default function CopilotPlaceholder({ assets = [], onNavigate }) {
               </span>
             )}
           </div>
-          <span className="text-[10px] font-mono text-slate-400">
-            Pipeline: {response?.pipeline_type || 'retrieval_only_fallback'}
-          </span>
+
+          {response && (
+            <div className="flex items-center gap-1.5">
+              {response.pipeline_type.startsWith('llm_grounded_rag') ? (
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-indigo-500/10 border border-indigo-500/30 text-indigo-300 font-mono text-[10px]">
+                  <Sparkles className="w-3 h-3 text-indigo-400" />
+                  <span>{response.pipeline_type}</span>
+                </span>
+              ) : (
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-amber-500/10 border border-amber-500/30 text-amber-300 font-mono text-[10px]">
+                  <Database className="w-3 h-3 text-amber-400" />
+                  <span>{response.pipeline_type}</span>
+                </span>
+              )}
+            </div>
+          )}
         </div>
 
         {/* Output Content Area */}
@@ -229,55 +406,124 @@ export default function CopilotPlaceholder({ assets = [], onNavigate }) {
                 </div>
               </div>
 
+              {/* Zero matches notification banner */}
+              {response.matched_assets_count === 0 && response.evidence.length === 0 && (
+                <div className="p-4 rounded-xl bg-amber-500/10 border border-amber-500/30 space-y-2">
+                  <div className="flex items-center gap-2 text-amber-400 font-bold text-xs">
+                    <AlertTriangle className="w-4 h-4" />
+                    <span>No Matching Infrastructure Records Found</span>
+                  </div>
+                  <p className="text-xs text-slate-300">
+                    The inquiry does not match any indexed asset primary keys, component names, or engineering audit documents.
+                  </p>
+                </div>
+              )}
+
               {/* Understandable Grounded Answer with Citations */}
               <div className="space-y-2">
+                {isDemo && (
+                  <div
+                    data-testid="copilot-demo-disclaimer"
+                    className="p-2.5 rounded-lg bg-amber-950/30 border border-amber-500/30 flex items-center gap-2 text-[11px] text-amber-300"
+                  >
+                    <AlertTriangle className="w-3.5 h-3.5 shrink-0 text-amber-400" />
+                    <span>
+                      Simulated Demonstration Material: response and citations are synthetic specimens authored for offline walkthrough. Not verified real-world evidence.
+                    </span>
+                  </div>
+                )}
                 <div className="flex items-center justify-between">
-                  <span className="text-xs font-bold uppercase tracking-wider text-cyan-400 block">
-                    Grounded Technical Synthesis
-                  </span>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-bold uppercase tracking-wider text-cyan-400 block">
+                      {isDemo ? 'Simulated Technical Synthesis' : 'Grounded Technical Synthesis'}
+                    </span>
+                    <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-mono bg-indigo-500/10 text-indigo-300 border border-indigo-500/20">
+                      <Sparkles className="w-2.5 h-2.5 text-indigo-400" />
+                      <span>{isDemo ? t('copilot.synthesisDemo', 'Simulated Demonstration Synthesis') : t('copilot.synthesisLive', 'AI Model Synthesis')}</span>
+                    </span>
+                  </div>
                   {response.citations && response.citations.length > 0 && (
-                    <span className="text-[10px] font-mono text-slate-400">
-                      {response.citations.length} Verified Sources Cited
+                    <span className="text-[10px] font-mono text-amber-400">
+                      {isDemo ? t('copilot.simulatedCitationsCited', '{count} Simulated Citations Cited', { count: response.citations.length }) : t('copilot.verifiedSourcesCited', '{count} Verified Sources Cited', { count: response.citations.length })}
                     </span>
                   )}
                 </div>
-                <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 text-xs text-slate-200 whitespace-pre-line leading-relaxed font-sans shadow-inner">
-                  {response.answer}
+                <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 text-xs text-slate-200 font-sans shadow-inner">
+                  <MarkdownAnswer text={response.answer} onOpenCitation={handleOpenCitation} />
                 </div>
               </div>
 
-              {/* Citations Box */}
-              {response.citations && response.citations.length > 0 && (
-                <div className="p-3.5 rounded-xl bg-slate-950/90 border border-slate-800/80 space-y-1.5">
+              {/* Citations Box with Deduplicated Source References (Interactive) */}
+              <div className="p-4 rounded-xl bg-slate-950/90 border border-slate-800 space-y-2.5">
+                <div className="flex items-center justify-between">
                   <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
-                    <Bookmark className="w-3 h-3 text-cyan-400" />
-                    <span>Evidence Citations & Source Provenance</span>
+                    <Bookmark className="w-3.5 h-3.5 text-cyan-400" />
+                    <span>{isDemo ? t('copilot.evidenceCitationsTitleDemo', 'Simulated Demonstration Citations & Source Provenance') : t('copilot.evidenceCitationsTitleLive', 'Evidence Citations & Source Provenance')}</span>
                   </span>
-                  <ul className="space-y-1 text-[11px] text-slate-300">
-                    {response.citations.map((cite, idx) => (
-                      <li key={idx} className="font-mono text-[10px] text-cyan-300">
-                        {cite}
-                      </li>
-                    ))}
-                  </ul>
+                  <span className="text-[10px] text-slate-400 hidden sm:inline">
+                    {t('copilot.clickCitationHint', 'Click any citation to inspect underlying evidence passage & document')}
+                  </span>
                 </div>
-              )}
+
+                {response.citations && response.citations.length > 0 ? (
+                  <div className="space-y-2">
+                    {response.citations.map((cite, idx) => {
+                      const match = cite.match(/\[(Ref\s*\d+)\]/i);
+                      const refLabel = match ? match[1] : `Ref ${idx + 1}`;
+                      return (
+                        <div
+                          key={idx}
+                          className="p-2.5 rounded-lg bg-slate-900 border border-slate-800 hover:border-cyan-800/80 flex items-center justify-between gap-3 text-xs transition-colors"
+                        >
+                          <div className="flex items-start gap-2 min-w-0">
+                            <span className="font-mono text-[10px] font-bold text-cyan-400 bg-cyan-950/80 border border-cyan-800/60 px-1.5 py-0.5 rounded shrink-0">
+                              [{refLabel}]
+                            </span>
+                            <span className="font-mono text-[11px] text-slate-300 truncate" title={cite}>
+                              {cite.replace(/^\[Ref\s*\d+\]\s*/, '')}
+                            </span>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => handleOpenCitation(refLabel)}
+                            className="px-2.5 py-1 rounded-md bg-cyan-950 hover:bg-cyan-900 text-cyan-300 border border-cyan-800/80 hover:border-cyan-500 text-[10px] font-semibold flex items-center gap-1 shrink-0 transition-all cursor-pointer"
+                            title={`Inspect supporting evidence for ${refLabel}`}
+                          >
+                            <BookOpen className="w-3 h-3" />
+                            <span>{t('copilot.inspectEvidence', 'Inspect Evidence')}</span>
+                          </button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <div className="p-3 rounded-lg bg-slate-900/60 border border-slate-800 text-xs text-slate-400 flex items-center gap-2">
+                    <Info className="w-4 h-4 text-slate-500 shrink-0" />
+                    <span>{t('copilot.noCitationsReturned', 'No citations were returned for this inquiry.')}</span>
+                  </div>
+                )}
+              </div>
 
               {/* Observed Facts vs Recommendations Grid */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {/* Verified Observed Facts */}
                 <div className="p-4 rounded-xl bg-slate-950/80 border border-slate-800 space-y-2.5">
-                  <div className="flex items-center gap-2">
-                    <CheckCircle2 className="w-4 h-4 text-emerald-400" />
-                    <h4 className="text-xs font-bold text-slate-200 uppercase tracking-wide">
-                      Observed Empirical Facts
-                    </h4>
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+                      <h4 className="text-xs font-bold text-slate-200 uppercase tracking-wide">
+                        {t('copilot.observedFactsTitle', 'Observed Empirical Facts')}
+                      </h4>
+                    </div>
+                    <span className="text-[10px] font-mono px-1.5 py-0.2 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                      {t('copilot.groundTruthBadge', 'Ground Truth')}
+                    </span>
                   </div>
                   <ul className="space-y-2 text-xs">
                     {response.observed_facts.map((fact, idx) => (
                       <li key={idx} className="flex items-start gap-2 text-slate-300 text-[11px] leading-relaxed">
                         <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 mt-1.5 shrink-0" />
-                        <span>{fact}</span>
+                        <div>{renderInlineContent(fact, handleOpenCitation)}</div>
                       </li>
                     ))}
                   </ul>
@@ -285,17 +531,22 @@ export default function CopilotPlaceholder({ assets = [], onNavigate }) {
 
                 {/* Recommended Engineering Next Steps */}
                 <div className="p-4 rounded-xl bg-slate-950/80 border border-slate-800 space-y-2.5">
-                  <div className="flex items-center gap-2">
-                    <ShieldAlert className="w-4 h-4 text-cyan-400" />
-                    <h4 className="text-xs font-bold text-slate-200 uppercase tracking-wide">
-                      Recommended Engineering Actions
-                    </h4>
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <ShieldAlert className="w-4 h-4 text-cyan-400" />
+                      <h4 className="text-xs font-bold text-slate-200 uppercase tracking-wide">
+                        {t('copilot.recommendedActionsTitle', 'Recommended Actions')}
+                      </h4>
+                    </div>
+                    <span className="text-[10px] font-mono px-1.5 py-0.2 rounded bg-cyan-500/10 text-cyan-400 border border-cyan-500/20">
+                      {t('copilot.aiGuidanceBadge', 'AI Guidance')}
+                    </span>
                   </div>
                   <ul className="space-y-2 text-xs">
                     {response.recommendations.map((rec, idx) => (
                       <li key={idx} className="flex items-start gap-2 text-slate-300 text-[11px] leading-relaxed">
                         <span className="w-1.5 h-1.5 rounded-full bg-cyan-400 mt-1.5 shrink-0" />
-                        <span>{rec}</span>
+                        <div>{renderInlineContent(rec, handleOpenCitation)}</div>
                       </li>
                     ))}
                   </ul>
@@ -306,76 +557,94 @@ export default function CopilotPlaceholder({ assets = [], onNavigate }) {
               {response.evidence && response.evidence.length > 0 && (
                 <div className="space-y-2.5 pt-2">
                   <div className="flex items-center justify-between">
-                    <span className="text-xs font-bold uppercase tracking-wider text-slate-400">
-                      Retrieved Evidence Passages & Records ({response.evidence.length})
-                    </span>
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-bold uppercase tracking-wider text-slate-400">
+                        {t('copilot.retrievedEvidenceTitle', 'Retrieved Evidence Passages & Records ({count})', { count: response.evidence.length })}
+                      </span>
+                      <span className="text-[10px] font-mono px-1.5 py-0.2 rounded bg-cyan-500/10 text-cyan-400 border border-cyan-500/20">
+                        {t('copilot.unalteredArchiveBadge', 'Unaltered Archive')}
+                      </span>
+                    </div>
                     <span className="text-[11px] font-mono text-slate-400">
-                      Source: SQLite + Indexed Documents
+                      {t('copilot.retrievedEvidenceSource', 'Source: SQLite + Indexed Documents')}
                     </span>
                   </div>
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                     {response.evidence.map((ev, idx) => {
                       const isDoc = ev.evidence_type === 'document_audit_passage';
+                      const label = ev.citation_label || `Ref ${idx + 1}`;
                       return (
                         <div
                           key={idx}
-                          className="p-3.5 rounded-xl bg-slate-950 border border-slate-800 space-y-2"
+                          className="p-3.5 rounded-xl bg-slate-950 border border-slate-800 space-y-2 flex flex-col justify-between"
                         >
-                          <div className="flex items-start justify-between gap-2">
-                            <div>
-                              <span className="font-mono text-[10px] font-bold text-cyan-400 uppercase block">
-                                {ev.citation_label ? `[${ev.citation_label}] ` : ''}
-                                {ev.asset_id || (isDoc ? 'DOCUMENT AUDIT' : 'ASSET')}
+                          <div className="space-y-2">
+                            <div className="flex items-start justify-between gap-2">
+                              <div>
+                                <span className="font-mono text-[10px] font-bold text-cyan-400 uppercase block">
+                                  [{label}]{' '}
+                                  {ev.asset_id || (isDoc ? 'DOCUMENT AUDIT' : 'ASSET')}
+                                </span>
+                                <h5 className="font-bold text-white text-xs">
+                                  {ev.document_name || ev.asset_name || 'Engineering Evidence'}
+                                </h5>
+                              </div>
+                              <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-slate-800 text-slate-300 border border-slate-700 shrink-0">
+                                {isDoc ? t('copilot.docExcerptBadge', 'Doc Excerpt') : t('copilot.dbTelemetryBadge', 'DB Telemetry')}
                               </span>
-                              <h5 className="font-bold text-white text-xs">
-                                {ev.document_name || ev.asset_name || 'Engineering Evidence'}
-                              </h5>
                             </div>
-                            <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-slate-800 text-slate-300 border border-slate-700">
-                              {isDoc ? 'Doc Excerpt' : 'DB Telemetry'}
-                            </span>
+
+                            {isDoc ? (
+                              <div className="text-[11px] text-slate-300 space-y-1.5">
+                                <p className="text-slate-400 text-[10px]">
+                                  {ev.section_title && <span>{ev.section_title} &bull; </span>}
+                                  {ev.page_number && <span>Page {ev.page_number} &bull; </span>}
+                                  <span>Audit Date: {ev.timestamp || 'N/A'}</span>
+                                </p>
+                                {ev.excerpt && (
+                                  <blockquote className="p-2 rounded bg-slate-900 border-l-2 border-cyan-500 text-[11px] text-slate-200 italic leading-snug">
+                                    "{ev.excerpt.slice(0, 260)}..."
+                                  </blockquote>
+                                )}
+                              </div>
+                            ) : (
+                              <div className="text-[11px] text-slate-300 space-y-1">
+                                <p>
+                                  <span className="text-slate-400">Location:</span> {ev.district}, {ev.state} ({ev.category})
+                                </p>
+                                <p>
+                                  <span className="text-slate-400">Risk Score:</span>{' '}
+                                  <span className="font-bold text-rose-400">{ev.risk_score}/100</span> &bull;{' '}
+                                  <span className="text-slate-400">Last Audit:</span> {ev.last_inspection_date || 'N/A'}
+                                </p>
+                              </div>
+                            )}
                           </div>
 
-                          {isDoc ? (
-                            <div className="text-[11px] text-slate-300 space-y-1.5">
-                              <p className="text-slate-400 text-[10px]">
-                                {ev.section_title && <span>{ev.section_title} &bull; </span>}
-                                {ev.page_number && <span>Page {ev.page_number} &bull; </span>}
-                                <span>Audit Date: {ev.timestamp || 'N/A'}</span>
-                              </p>
-                              {ev.excerpt && (
-                                <blockquote className="p-2 rounded bg-slate-900 border-l-2 border-cyan-500 text-[11px] text-slate-200 italic leading-snug">
-                                  "{ev.excerpt.slice(0, 240)}..."
-                                </blockquote>
-                              )}
-                            </div>
-                          ) : (
-                            <div className="text-[11px] text-slate-300 space-y-1">
-                              <p>
-                                <span className="text-slate-400">Location:</span> {ev.district}, {ev.state} ({ev.category})
-                              </p>
-                              <p>
-                                <span className="text-slate-400">Risk Score:</span>{' '}
-                                <span className="font-bold text-rose-400">{ev.risk_score}/100</span> &bull;{' '}
-                                <span className="text-slate-400">Last Audit:</span> {ev.last_inspection_date || 'N/A'}
-                              </p>
-                            </div>
-                          )}
-
-                          <div className="pt-1.5 border-t border-slate-800 text-[10px] text-slate-400 flex items-center justify-between">
-                            <span className="truncate max-w-[200px]" title={ev.source}>
-                              Source: {ev.source}
+                          <div className="pt-2 border-t border-slate-800 text-[10px] text-slate-400 flex items-center justify-between gap-2">
+                            <span className="truncate max-w-[150px]" title={ev.source}>
+                              {ev.source}
                             </span>
-                            {ev.asset_id && onNavigate && (
+                            <div className="flex items-center gap-2">
                               <button
                                 type="button"
-                                onClick={() => onNavigate('registry')}
-                                className="text-cyan-400 hover:underline flex items-center gap-1 font-medium"
+                                onClick={() => handleOpenCitation(label)}
+                                className="text-cyan-400 hover:text-cyan-300 flex items-center gap-1 font-semibold text-[10px] transition-colors"
                               >
-                                Registry <ExternalLink className="w-2.5 h-2.5" />
+                                <BookOpen className="w-3 h-3" />
+                                <span>{t('copilot.inspectButton', 'Inspect')}</span>
                               </button>
-                            )}
+                              {ev.asset_id && onNavigate && (
+                                <button
+                                  type="button"
+                                  onClick={() => onNavigate('registry')}
+                                  className="text-slate-400 hover:text-slate-200 flex items-center gap-1 font-medium text-[10px]"
+                                >
+                                  {t('copilot.registryButton', 'Registry')} <ExternalLink className="w-2.5 h-2.5" />
+                                </button>
+                              )}
+                            </div>
                           </div>
                         </div>
                       );
@@ -396,10 +665,10 @@ export default function CopilotPlaceholder({ assets = [], onNavigate }) {
             <div className="text-center space-y-2 text-slate-400 py-8">
               <Bot className="w-10 h-10 text-slate-600 mx-auto" />
               <p className="text-xs font-medium text-slate-300">
-                Ready for infrastructure inquiries
+                {t('copilot.readyForInquiries', 'Ready for infrastructure inquiries')}
               </p>
               <p className="text-[11px] text-slate-400 max-w-sm mx-auto">
-                Type an asset question below or click one of the verification prompt cards above.
+                {t('copilot.readyHint', 'Type an asset question below or click one of the verification prompt cards above.')}
               </p>
             </div>
           )}
@@ -416,13 +685,14 @@ export default function CopilotPlaceholder({ assets = [], onNavigate }) {
           >
             {/* Optional Asset Scope Filter */}
             <div className="sm:w-48 bg-slate-900 border border-slate-800 rounded-lg px-2.5 py-1.5 text-xs flex items-center gap-1.5">
-              <span className="text-[10px] text-slate-400 uppercase font-semibold">Scope:</span>
+              <span className="text-[10px] text-slate-400 uppercase font-semibold">{t('copilot.scopeLabel', 'Scope:')}</span>
               <select
                 value={selectedAssetScope}
                 onChange={(e) => setSelectedAssetScope(e.target.value)}
-                className="bg-transparent text-xs text-white focus:outline-none w-full truncate cursor-pointer"
+                disabled={loading}
+                className="bg-transparent text-xs text-white focus:outline-none w-full truncate cursor-pointer disabled:opacity-50"
               >
-                <option value="ALL" className="bg-slate-900 text-white">All Infrastructure</option>
+                <option value="ALL" className="bg-slate-900 text-white">{t('copilot.allInfrastructure', 'All Infrastructure')}</option>
                 {assets.map((a) => (
                   <option key={a.id} value={a.id} className="bg-slate-900 text-white">
                     {a.id} - {a.name}
@@ -441,7 +711,7 @@ export default function CopilotPlaceholder({ assets = [], onNavigate }) {
                 }}
                 onKeyDown={handleKeyDown}
                 disabled={loading}
-                placeholder="Ask about any infrastructure asset (e.g. 'What did the underwater sonar scour audit find?')..."
+                placeholder={t('copilot.inputPlaceholder', "Ask about any infrastructure asset (e.g. 'What did the underwater sonar scour audit find?')...")}
                 className="w-full bg-slate-900 border border-slate-800 rounded-lg pl-4 pr-10 py-2.5 text-xs text-white placeholder-slate-400 focus:outline-none focus:border-cyan-500 transition-colors disabled:opacity-50"
               />
               {inputValue && !loading && (
@@ -462,11 +732,11 @@ export default function CopilotPlaceholder({ assets = [], onNavigate }) {
               {loading ? (
                 <>
                   <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                  <span>Processing...</span>
+                  <span>{t('copilot.queryingButton', 'Processing...')}</span>
                 </>
               ) : (
                 <>
-                  <span>Ask Copilot</span>
+                  <span>{t('copilot.askButton', 'Ask Copilot')}</span>
                   <Send className="w-3.5 h-3.5" />
                 </>
               )}
@@ -474,6 +744,17 @@ export default function CopilotPlaceholder({ assets = [], onNavigate }) {
           </form>
         </div>
       </div>
+
+      {/* Grounded Evidence Inspection Modal */}
+      <EvidenceViewerModal
+        isOpen={viewerOpen}
+        onClose={() => setViewerOpen(false)}
+        selectedCitationLabel={selectedCitationLabel}
+        citations={response?.citations || []}
+        evidence={response?.evidence || []}
+        onNavigate={onNavigate}
+        isDemo={isDemo}
+      />
     </div>
   );
 }

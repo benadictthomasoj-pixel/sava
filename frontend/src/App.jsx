@@ -1,28 +1,65 @@
 import React, { useState, useEffect } from 'react';
 import Sidebar from './components/Sidebar';
 import Header from './components/Header';
+import DemoBanner from './components/DemoBanner';
+import LoginScreen from './components/LoginScreen';
 import DashboardOverview from './pages/DashboardOverview';
 import AssetRegistry from './pages/AssetRegistry';
 import MapViewPlaceholder from './pages/MapViewPlaceholder';
 import DigitalHeartbeatPlaceholder from './pages/DigitalHeartbeatPlaceholder';
 import CopilotPlaceholder from './pages/CopilotPlaceholder';
+import { AuthProvider, useAuth } from './context/AuthContext';
+import { LanguageProvider } from './context/LanguageContext';
 import { fetchHealth, fetchAssets, fetchAssetStats } from './services/api';
-import { AlertCircle, RefreshCw } from 'lucide-react';
+import {
+  getDemoAssets,
+  getDemoAssetStats,
+  getDemoAssetCategories,
+} from './demo/demoService';
+import { AlertCircle, RefreshCw, Loader2 } from 'lucide-react';
 
-export default function App() {
+export function DashboardView({ isDemo = false, onExitDemo }) {
+  const { user, logout, isAdmin } = useAuth();
   const [currentRoute, setCurrentRoute] = useState('overview');
   const [assets, setAssets] = useState([]);
   const [stats, setStats] = useState(null);
   const [categories, setCategories] = useState([]);
   const [selectedAsset, setSelectedAsset] = useState(null);
   const [healthData, setHealthData] = useState(null);
-  const [systemStatus, setSystemStatus] = useState('connecting');
+  const [systemStatus, setSystemStatus] = useState(isDemo ? 'demo' : 'connecting');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
   const loadData = async () => {
     setLoading(true);
     setError(null);
+
+    if (isDemo) {
+      try {
+        const [demoAssetsData, demoStatsData, demoCats] = await Promise.all([
+          getDemoAssets(),
+          getDemoAssetStats(),
+          getDemoAssetCategories(),
+        ]);
+        setAssets(demoAssetsData.items || []);
+        setCategories(demoCats || []);
+        setStats(demoStatsData);
+        if (!selectedAsset && demoAssetsData.items && demoAssetsData.items.length > 0) {
+          const highRisk = demoAssetsData.items.find(
+            (a) => a.status === 'Critical Attention' || a.risk_level === 'Critical'
+          );
+          setSelectedAsset(highRisk || demoAssetsData.items[0]);
+        }
+        setSystemStatus('demo');
+      } catch (err) {
+        console.error('Demo data initialization failed:', err);
+        setError('Failed to load simulated demo assets.');
+      } finally {
+        setLoading(false);
+      }
+      return;
+    }
+
     try {
       // 1. Check backend health
       const health = await fetchHealth();
@@ -62,7 +99,7 @@ export default function App() {
 
   useEffect(() => {
     loadData();
-  }, []);
+  }, [isDemo]);
 
   // Route titles and subtitles for header
   const routeMeta = {
@@ -91,25 +128,35 @@ export default function App() {
   const currentMeta = routeMeta[currentRoute] || routeMeta.overview;
 
   return (
-    <div className="flex h-screen w-screen overflow-hidden bg-slate-950 text-slate-100 font-sans">
-      {/* Fixed Left Navigation Sidebar */}
-      <Sidebar
-        currentRoute={currentRoute}
-        onRouteChange={(route) => setCurrentRoute(route)}
-        systemStatus={systemStatus}
-        assetCount={assets.length}
-      />
+    <div className="flex flex-col h-screen w-screen overflow-hidden bg-slate-950 text-slate-100 font-sans">
+      {/* Persistent Demo Mode Banner */}
+      {isDemo && <DemoBanner onExitDemo={onExitDemo} />}
 
-      {/* Main Content Area */}
-      <div className="flex-1 flex flex-col h-screen overflow-hidden">
-        {/* Top Header */}
-        <Header
-          pageTitle={currentMeta.title}
-          subtitle={currentMeta.subtitle}
-          onRefresh={loadData}
-          loading={loading}
-          healthData={healthData}
+      <div className="flex-1 flex overflow-hidden">
+        {/* Fixed Left Navigation Sidebar */}
+        <Sidebar
+          currentRoute={currentRoute}
+          onRouteChange={(route) => setCurrentRoute(route)}
+          systemStatus={isDemo ? 'demo' : systemStatus}
+          assetCount={assets.length}
+          isDemo={isDemo}
         />
+
+        {/* Main Content Area */}
+        <div className="flex-1 flex flex-col h-full overflow-hidden">
+          {/* Top Header */}
+          <Header
+            pageTitle={currentMeta.title}
+            subtitle={currentMeta.subtitle}
+            onRefresh={!isDemo ? loadData : undefined}
+            loading={loading}
+            healthData={isDemo ? null : healthData}
+            user={isDemo ? null : user}
+            onLogout={!isDemo ? logout : undefined}
+            isAdmin={isDemo ? false : isAdmin}
+            isDemo={isDemo}
+            onExitDemo={onExitDemo}
+          />
 
         {/* Scrollable Viewport */}
         <main className="flex-1 overflow-y-auto p-6">
@@ -150,6 +197,7 @@ export default function App() {
               error={error}
               onNavigate={(route) => setCurrentRoute(route)}
               onSelectAsset={(asset) => setSelectedAsset(asset)}
+              isDemo={isDemo}
             />
           )}
 
@@ -162,6 +210,9 @@ export default function App() {
               selectedAsset={selectedAsset}
               onSelectAsset={(asset) => setSelectedAsset(asset)}
               onNavigate={(route) => setCurrentRoute(route)}
+              onRefresh={loadData}
+              isAdmin={isAdmin}
+              isDemo={isDemo}
             />
           )}
 
@@ -171,6 +222,7 @@ export default function App() {
               selectedAsset={selectedAsset}
               onSelectAsset={(asset) => setSelectedAsset(asset)}
               onNavigate={(route) => setCurrentRoute(route)}
+              isDemo={isDemo}
             />
           )}
 
@@ -180,6 +232,9 @@ export default function App() {
               selectedAsset={selectedAsset}
               onSelectAsset={(asset) => setSelectedAsset(asset)}
               onNavigate={(route) => setCurrentRoute(route)}
+              onRefresh={loadData}
+              isAdmin={isAdmin}
+              isDemo={isDemo}
             />
           )}
 
@@ -187,10 +242,82 @@ export default function App() {
             <CopilotPlaceholder
               assets={assets}
               onNavigate={(route) => setCurrentRoute(route)}
+              isDemo={isDemo}
             />
           )}
         </main>
       </div>
     </div>
+  </div>
+  );
+}
+
+function getIsDemoFromHash() {
+  if (typeof window === 'undefined') return false;
+  return window.location.hash.toLowerCase() === '#demo';
+}
+
+function AppRoot() {
+  const { isAuthenticated, loading } = useAuth();
+  const [isDemoMode, setIsDemoMode] = useState(() => getIsDemoFromHash());
+
+  useEffect(() => {
+    const handleHashChange = () => {
+      setIsDemoMode(getIsDemoFromHash());
+    };
+    window.addEventListener('hashchange', handleHashChange);
+    return () => window.removeEventListener('hashchange', handleHashChange);
+  }, []);
+
+  const handleEnterDemo = () => {
+    setIsDemoMode(true);
+    if (window.location.hash !== '#demo') {
+      window.location.hash = '#demo';
+    }
+  };
+
+  const handleExitDemo = () => {
+    setIsDemoMode(false);
+    if (window.location.hash === '#demo') {
+      if (window.history && window.history.replaceState) {
+        window.history.replaceState(null, '', window.location.pathname + window.location.search);
+      } else {
+        window.location.hash = '';
+      }
+    }
+  };
+
+  // Direct access to demo mode does not require waiting for auth session verification
+  if (isDemoMode) {
+    return <DashboardView isDemo={true} onExitDemo={handleExitDemo} />;
+  }
+
+  if (loading) {
+    return (
+      <div className="flex h-screen w-screen items-center justify-center bg-slate-950 text-slate-400 font-sans">
+        <div className="flex flex-col items-center gap-3">
+          <div className="w-10 h-10 border-2 border-cyan-500 border-t-transparent rounded-full animate-spin" />
+          <span className="text-xs uppercase tracking-widest text-slate-400 font-medium">
+            Verifying AAYAM Session...
+          </span>
+        </div>
+      </div>
+    );
+  }
+
+  if (!isAuthenticated) {
+    return <LoginScreen onEnterDemo={handleEnterDemo} />;
+  }
+
+  return <DashboardView isDemo={false} />;
+}
+
+export default function App() {
+  return (
+    <LanguageProvider>
+      <AuthProvider>
+        <AppRoot />
+      </AuthProvider>
+    </LanguageProvider>
   );
 }

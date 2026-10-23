@@ -1,9 +1,102 @@
 from datetime import datetime, timezone
 from typing import Dict, Any, List, Optional
 import math
-from app.models import Asset, Inspection
+from app.models import Asset, Inspection, parse_flagged_reasons
 
 CURRENT_YEAR = 2026
+
+
+def determine_asset_status(risk_score: float) -> str:
+    """
+    Synchronizes operational asset status consistently with the calculated risk score.
+    - risk_score >= 60.0: 'Critical Attention'
+    - 40.0 <= risk_score < 60.0: 'Requires Inspection'
+    - risk_score < 40.0: 'Operational'
+    """
+    if risk_score >= 60.0:
+        return "Critical Attention"
+    elif risk_score >= 40.0:
+        return "Requires Inspection"
+    else:
+        return "Operational"
+
+
+def is_flag_remediated(flag_text: str, verified_inspections: List[Inspection]) -> bool:
+    """
+    Checks if a specific flagged defect has been successfully remediated by a verified inspection.
+    Criteria:
+    1. Inspection status == 'Verified'
+    2. Inspection verification_outcome == 'Remediation Successful'
+    3. actual_action_taken is documented and non-empty
+    4. Inspection findings/action/type explicitly relate to the flagged defect domain keywords.
+    """
+    flag_lower = flag_text.lower()
+
+    if "scour" in flag_lower:
+        keywords = ["scour", "rip-rap", "riprap", "bathymetry", "pier foundation", "sediment depth", "underwater sonar"]
+    elif "seizure" in flag_lower:
+        keywords = ["seizure", "gate", "sluice", "hoist", "actuator", "bearing", "lubricat", "motor", "greas"]
+    elif "joint" in flag_lower:
+        keywords = ["joint", "seal", "expansion", "elastomer", "deck slab"]
+    elif "vibration" in flag_lower:
+        keywords = ["vibration", "resonance", "balancing", "bearing", "harmonic", "amplitude", "damp"]
+    elif "fissure" in flag_lower or "crack" in flag_lower:
+        keywords = ["fissure", "crack", "epoxy", "grout", "ultrasonic", "spall", "flaw"]
+    elif "overdue" in flag_lower:
+        keywords = ["audit", "inspection", "survey", "check", "overdue"]
+    else:
+        # Meaningful tokens (> 3 chars) from the flag text
+        keywords = [w for w in flag_lower.replace(";", " ").replace(",", " ").split() if len(w) > 3]
+
+    for insp in verified_inspections:
+        outcome = getattr(insp, "verification_outcome", None) or "Remediation Successful"
+        if outcome != "Remediation Successful":
+            continue
+
+        # Must have documented actual intervention
+        if not (insp.actual_action_taken and insp.actual_action_taken.strip()):
+            continue
+
+        insp_domain = f"{insp.findings} {insp.recommended_action or ''} {insp.actual_action_taken or ''} {insp.inspection_type}".lower()
+        if any(kw in insp_domain for kw in keywords):
+            return True
+
+    return False
+
+
+def has_unresolved_critical_defects(inspections: List[Inspection], verified_inspections: List[Inspection]) -> bool:
+    """
+    Checks if there are any active/unresolved critical defects (scour, bearing seizure, fissure/crack)
+    observed in inspections that have not been remediated by an eligible verified successful intervention.
+
+    A critical finding remains unresolved if:
+    1. The inspection is in 'Pending', 'In Progress', or 'Completed' status (not yet certified).
+    2. The inspection is 'Verified' with outcome 'Remediation Unsuccessful' or 'Further Assessment Required'.
+    AND no verified inspection has successfully remediated that specific critical defect.
+    """
+    critical_keywords = ["scour", "seizure", "fissure"]
+
+    for insp in inspections:
+        findings_lower = (insp.findings or "").lower()
+        active_critical_kws = [kw for kw in critical_keywords if kw in findings_lower]
+        if not active_critical_kws:
+            continue
+
+        # Check inspection's own state
+        is_unverified = insp.status in ["Pending", "In Progress", "Completed"]
+        outcome = getattr(insp, "verification_outcome", None)
+        is_unsuccessful_or_assessment = insp.status == "Verified" and outcome in [
+            "Remediation Unsuccessful",
+            "Further Assessment Required",
+        ]
+
+        if is_unverified or is_unsuccessful_or_assessment:
+            # Check if this critical defect has been resolved by ANY verified successful inspection
+            for kw in active_critical_kws:
+                if not is_flag_remediated(kw, verified_inspections):
+                    return True
+
+    return False
 
 
 def calculate_digital_heartbeat(asset: Asset, db_inspections: Optional[List[Inspection]] = None) -> Dict[str, Any]:
@@ -20,11 +113,12 @@ def calculate_digital_heartbeat(asset: Asset, db_inspections: Optional[List[Insp
     latest_insp_date = latest_inspection.inspection_date if latest_inspection else asset.last_inspection_date
 
     # Determine verified interventions
-    has_verified_intervention = any(insp.status == "Verified" for insp in inspections)
-    has_pending_critical_inspection = any(
-        insp.status in ["Pending", "In Progress"] and ("scour" in insp.findings.lower() or "seizure" in insp.findings.lower() or "fissure" in insp.findings.lower())
+    verified_inspections = [insp for insp in inspections if insp.status == "Verified"]
+    has_verified_intervention = any(
+        insp.status == "Verified" and (getattr(insp, "verification_outcome", None) or "Remediation Successful") == "Remediation Successful"
         for insp in inspections
     )
+    has_pending_critical_inspection = has_unresolved_critical_defects(inspections, verified_inspections)
 
     # -------------------------------------------------------------
     # FACTOR 1: Structural & Physical Material Integrity (Weight 35%)
@@ -33,26 +127,30 @@ def calculate_digital_heartbeat(asset: Asset, db_inspections: Optional[List[Insp
     age = (CURRENT_YEAR - asset.construction_year) if asset.construction_year else 30
     age_component = min(50.0, (age / 50.0) * 45.0)
 
-    # Defect severity from flagged reasons and inspections
-    flags = asset.flagged_reasons.split("; ") if asset.flagged_reasons else []
+    # Defect severity from flagged reasons and inspections - targeted per defect
+    flags = parse_flagged_reasons(asset.flagged_reasons)
     defect_component = 0.0
     for f in flags:
         f_lower = f.lower()
         if "scour" in f_lower or "seizure" in f_lower:
-            defect_component += 25.0
+            base_penalty = 25.0
         elif "joint" in f_lower or "vibration" in f_lower or "fissure" in f_lower:
-            defect_component += 18.0
+            base_penalty = 18.0
         elif "overdue" in f_lower:
-            defect_component += 12.0
+            base_penalty = 12.0
         else:
-            defect_component += 8.0
+            base_penalty = 8.0
+
+        # Check if this specific defect has a verified successful remediation
+        if is_flag_remediated(f, verified_inspections):
+            # Mitigated penalty: residual monitoring baseline (floor of 3.0 or 25% of base)
+            defect_component += max(3.0, round(base_penalty * 0.25, 1))
+        else:
+            # Unremediated active defect maintains full penalty
+            defect_component += base_penalty
 
     if has_pending_critical_inspection:
         defect_component += 15.0
-
-    # Mitigation if verified intervention exists
-    if has_verified_intervention:
-        defect_component = max(5.0, defect_component * 0.4)
 
     factor1_score = min(100.0, max(5.0, age_component + defect_component))
     factor1_weight = 0.35
@@ -175,7 +273,7 @@ def calculate_digital_heartbeat(asset: Asset, db_inspections: Optional[List[Insp
     else:
         missing_fields.append("Geospatial GPS Coordinates")
 
-    if asset.flagged_reasons:
+    if parse_flagged_reasons(asset.flagged_reasons):
         verified_fields.append("Structural Defect Inventory")
     else:
         missing_fields.append("Structural Defect Inventory")

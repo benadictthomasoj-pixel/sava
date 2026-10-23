@@ -1,9 +1,209 @@
 /**
  * API Service for AAYAM Infrastructure Intelligence Layer
- * Communicates with FastAPI backend with structured error handling.
+ * Communicates with FastAPI backend with structured error handling and JWT RBAC authentication.
  */
 
 const BASE_URL = import.meta.env.VITE_API_BASE_URL || '';
+
+let currentAuthToken = null;
+let onUnauthorizedCallback = null;
+
+/**
+ * Configure active in-memory JWT bearer token
+ * @param {string|null} token
+ */
+export function setAuthToken(token) {
+  currentAuthToken = token;
+}
+
+/**
+ * Get active in-memory JWT bearer token
+ * @returns {string|null}
+ */
+export function getAuthToken() {
+  return currentAuthToken;
+}
+
+/**
+ * Register unauthorized 401 callback handler from AuthContext
+ * @param {Function|null} callback
+ */
+export function setUnauthorizedHandler(callback) {
+  onUnauthorizedCallback = callback;
+}
+
+function handleUnauthorized() {
+  if (typeof onUnauthorizedCallback === 'function') {
+    onUnauthorizedCallback();
+  }
+}
+
+/**
+ * Build request headers including Authorization Bearer if token is available
+ * @param {Object} customHeaders
+ */
+function getAuthHeaders(customHeaders = {}) {
+  const headers = { ...customHeaders };
+  if (currentAuthToken) {
+    headers['Authorization'] = `Bearer ${currentAuthToken}`;
+  }
+  return headers;
+}
+
+/**
+ * Format structured error response from FastAPI
+ */
+function formatApiError(errorData, status, defaultAction = 'perform operation') {
+  if (errorData) {
+    if (typeof errorData.detail === 'string') {
+      return errorData.detail;
+    }
+    if (Array.isArray(errorData.detail)) {
+      return errorData.detail
+        .map((d) => {
+          const fieldName = Array.isArray(d.loc)
+            ? d.loc.filter((x) => x !== 'body').join('.')
+            : 'field';
+          return `${fieldName}: ${d.msg}`;
+        })
+        .join('; ');
+    }
+    if (errorData.detail) {
+      return JSON.stringify(errorData.detail);
+    }
+  }
+  return `Failed to ${defaultAction} (HTTP ${status})`;
+}
+
+// ==============================================================================
+// AUTHENTICATION & PROFILE ENDPOINTS
+// ==============================================================================
+
+/**
+ * Register a new Common User account via POST /api/auth/register
+ * @param {Object} data - { username, email, full_name, password, confirm_password }
+ */
+export async function registerUser(data) {
+  const { username, email, full_name, password, confirm_password } = data || {};
+  if (!username || !email || !full_name || !password || !confirm_password) {
+    const err = new Error('All registration fields are required.');
+    err.status = 400;
+    throw err;
+  }
+  if (password !== confirm_password) {
+    const err = new Error('Passwords do not match.');
+    err.status = 400;
+    throw err;
+  }
+
+  try {
+    const res = await fetch(`${BASE_URL}/api/auth/register`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+      },
+      body: JSON.stringify({
+        username: username.trim(),
+        email: email.trim().toLowerCase(),
+        full_name: full_name.trim(),
+        password,
+        confirm_password,
+      }),
+    });
+
+    if (!res.ok) {
+      const errData = await res.json().catch(() => ({}));
+      const msg = formatApiError(errData, res.status, 'register account');
+      const err = new Error(msg);
+      err.status = res.status;
+      throw err;
+    }
+
+    return await res.json();
+  } catch (err) {
+    if (!err.status) {
+      err.message = 'Unable to connect to backend authentication server. Ensure the FastAPI backend is running.';
+    }
+    console.error('API Error in registerUser:', err);
+    throw err;
+  }
+}
+
+/**
+ * Authenticate against POST /api/auth/login
+ * @param {Object} credentials - { username, password }
+ */
+export async function loginUser(credentials) {
+  const { username, password } = credentials || {};
+  if (!username || !password) {
+    const err = new Error('Please enter both username and password.');
+    err.status = 400;
+    throw err;
+  }
+
+  try {
+    const res = await fetch(`${BASE_URL}/api/auth/login`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+      },
+      body: JSON.stringify({
+        username: username.trim(),
+        password,
+      }),
+    });
+
+    if (!res.ok) {
+      const errData = await res.json().catch(() => ({}));
+      const msg = formatApiError(errData, res.status, 'authenticate');
+      const err = new Error(msg);
+      err.status = res.status;
+      throw err;
+    }
+
+    return await res.json();
+  } catch (err) {
+    if (!err.status) {
+      // Network failure / server offline
+      err.message = 'Unable to connect to backend authentication server. Ensure the FastAPI backend is running.';
+    }
+    console.error('API Error in loginUser:', err);
+    throw err;
+  }
+}
+
+/**
+ * Fetch authenticated user profile via GET /api/auth/me
+ */
+export async function fetchCurrentUserProfile() {
+  try {
+    const res = await fetch(`${BASE_URL}/api/auth/me`, {
+      headers: getAuthHeaders({ 'Accept': 'application/json' }),
+    });
+
+    if (!res.ok) {
+      if (res.status === 401) {
+        handleUnauthorized();
+      }
+      const errData = await res.json().catch(() => ({}));
+      const msg = formatApiError(errData, res.status, 'verify session profile');
+      const err = new Error(msg);
+      err.status = res.status;
+      throw err;
+    }
+
+    return await res.json();
+  } catch (err) {
+    console.error('API Error in fetchCurrentUserProfile:', err);
+    throw err;
+  }
+}
+
+// ==============================================================================
+// PUBLIC & READ-ONLY ENDPOINTS
+// ==============================================================================
 
 /**
  * Fetch backend health status
@@ -11,7 +211,7 @@ const BASE_URL = import.meta.env.VITE_API_BASE_URL || '';
 export async function fetchHealth() {
   try {
     const res = await fetch(`${BASE_URL}/api/health`, {
-      headers: { 'Accept': 'application/json' },
+      headers: getAuthHeaders({ 'Accept': 'application/json' }),
     });
     if (!res.ok) {
       throw new Error(`Health check failed with status: ${res.status}`);
@@ -29,7 +229,7 @@ export async function fetchHealth() {
 export async function fetchAssetStats() {
   try {
     const res = await fetch(`${BASE_URL}/api/assets/summary/stats`, {
-      headers: { 'Accept': 'application/json' },
+      headers: getAuthHeaders({ 'Accept': 'application/json' }),
     });
     if (!res.ok) {
       throw new Error(`Stats endpoint failed with status: ${res.status}`);
@@ -63,7 +263,7 @@ export async function fetchAssets(params = {}) {
 
     const url = `${BASE_URL}/api/assets${query.toString() ? `?${query.toString()}` : ''}`;
     const res = await fetch(url, {
-      headers: { 'Accept': 'application/json' },
+      headers: getAuthHeaders({ 'Accept': 'application/json' }),
     });
 
     if (!res.ok) {
@@ -84,7 +284,7 @@ export async function fetchAssets(params = {}) {
 export async function fetchAssetById(assetId) {
   try {
     const res = await fetch(`${BASE_URL}/api/assets/${encodeURIComponent(assetId)}`, {
-      headers: { 'Accept': 'application/json' },
+      headers: getAuthHeaders({ 'Accept': 'application/json' }),
     });
 
     if (!res.ok) {
@@ -117,10 +317,10 @@ export async function askCopilot(question, options = {}) {
 
     const res = await fetch(`${BASE_URL}/api/copilot/ask`, {
       method: 'POST',
-      headers: {
+      headers: getAuthHeaders({
         'Content-Type': 'application/json',
         'Accept': 'application/json',
-      },
+      }),
       body: JSON.stringify(payload),
     });
 
@@ -147,13 +347,44 @@ export async function askCopilot(question, options = {}) {
 }
 
 /**
+ * Fetch full verified engineering document content and pages for evidence inspection
+ * @param {string} documentIdentifier - document name or filename
+ */
+export async function fetchSourceDocument(documentIdentifier) {
+  if (!documentIdentifier || !documentIdentifier.trim()) {
+    throw new Error('Document identifier is required.');
+  }
+
+  try {
+    const res = await fetch(`${BASE_URL}/api/copilot/documents/${encodeURIComponent(documentIdentifier.trim())}`, {
+      headers: getAuthHeaders({ 'Accept': 'application/json' }),
+    });
+
+    if (!res.ok) {
+      let msg = `Failed to load source document (HTTP ${res.status})`;
+      if (res.status === 404) {
+        msg = `Source document '${documentIdentifier}' is unavailable or not found in evidence repository.`;
+      }
+      const err = new Error(msg);
+      err.status = res.status;
+      throw err;
+    }
+
+    return await res.json();
+  } catch (err) {
+    console.error(`API Error in fetchSourceDocument(${documentIdentifier}):`, err);
+    throw err;
+  }
+}
+
+/**
  * Fetch dynamic Digital Heartbeat telemetry and explainable factor breakdown
  * @param {string} assetId
  */
 export async function fetchAssetHeartbeat(assetId) {
   try {
     const res = await fetch(`${BASE_URL}/api/assets/${encodeURIComponent(assetId)}/heartbeat`, {
-      headers: { 'Accept': 'application/json' },
+      headers: getAuthHeaders({ 'Accept': 'application/json' }),
     });
     if (!res.ok) {
       throw new Error(`Failed to fetch heartbeat for '${assetId}' (HTTP ${res.status})`);
@@ -172,92 +403,18 @@ export async function fetchAssetHeartbeat(assetId) {
 export async function fetchAssetInspections(assetId) {
   try {
     const res = await fetch(`${BASE_URL}/api/assets/${encodeURIComponent(assetId)}/inspections`, {
-      headers: { 'Accept': 'application/json' },
+      headers: getAuthHeaders({ 'Accept': 'application/json' }),
     });
     if (!res.ok) {
-      throw new Error(`Failed to load inspections for '${assetId}' (HTTP ${res.status})`);
+      const errData = await res.json().catch(() => ({}));
+      const msg = formatApiError(errData, res.status, `load inspections for '${assetId}'`);
+      const error = new Error(msg);
+      error.status = res.status;
+      throw error;
     }
     return await res.json();
   } catch (err) {
     console.error(`API Error in fetchAssetInspections(${assetId}):`, err);
-    throw err;
-  }
-}
-
-/**
- * Record a new field inspection and recommended action
- * @param {string} assetId
- * @param {Object} data - { inspection_date, inspection_type, findings, recommended_action, actual_action_taken, responsible_user, evidence_references }
- */
-export async function createInspection(assetId, data) {
-  try {
-    const res = await fetch(`${BASE_URL}/api/assets/${encodeURIComponent(assetId)}/inspections`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Accept': 'application/json',
-      },
-      body: JSON.stringify(data),
-    });
-    if (!res.ok) {
-      const errData = await res.json().catch(() => ({}));
-      throw new Error(errData.detail || `Failed to record inspection (HTTP ${res.status})`);
-    }
-    return await res.json();
-  } catch (err) {
-    console.error(`API Error in createInspection(${assetId}):`, err);
-    throw err;
-  }
-}
-
-/**
- * Update an inspection action status or intervention details
- * @param {string} inspectionId
- * @param {Object} data - { status, actual_action_taken, evidence_references }
- */
-export async function updateInspection(inspectionId, data) {
-  try {
-    const res = await fetch(`${BASE_URL}/api/inspections/${encodeURIComponent(inspectionId)}`, {
-      method: 'PATCH',
-      headers: {
-        'Content-Type': 'application/json',
-        'Accept': 'application/json',
-      },
-      body: JSON.stringify(data),
-    });
-    if (!res.ok) {
-      const errData = await res.json().catch(() => ({}));
-      throw new Error(errData.detail || `Failed to update inspection (HTTP ${res.status})`);
-    }
-    return await res.json();
-  } catch (err) {
-    console.error(`API Error in updateInspection(${inspectionId}):`, err);
-    throw err;
-  }
-}
-
-/**
- * Verify outcome of an intervention in the closed-loop workflow
- * @param {string} inspectionId
- * @param {Object} data - { verification_notes, verification_date, verifier_name }
- */
-export async function verifyInspectionOutcome(inspectionId, data) {
-  try {
-    const res = await fetch(`${BASE_URL}/api/inspections/${encodeURIComponent(inspectionId)}/verify`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Accept': 'application/json',
-      },
-      body: JSON.stringify(data),
-    });
-    if (!res.ok) {
-      const errData = await res.json().catch(() => ({}));
-      throw new Error(errData.detail || `Failed to verify inspection outcome (HTTP ${res.status})`);
-    }
-    return await res.json();
-  } catch (err) {
-    console.error(`API Error in verifyInspectionOutcome(${inspectionId}):`, err);
     throw err;
   }
 }
@@ -269,7 +426,7 @@ export async function verifyInspectionOutcome(inspectionId, data) {
 export async function fetchAssetTimeline(assetId) {
   try {
     const res = await fetch(`${BASE_URL}/api/assets/${encodeURIComponent(assetId)}/timeline`, {
-      headers: { 'Accept': 'application/json' },
+      headers: getAuthHeaders({ 'Accept': 'application/json' }),
     });
     if (!res.ok) {
       throw new Error(`Failed to load timeline for '${assetId}' (HTTP ${res.status})`);
@@ -281,5 +438,141 @@ export async function fetchAssetTimeline(assetId) {
   }
 }
 
+// ==============================================================================
+// PROTECTED MUTATING ENDPOINTS (ADMIN-ONLY)
+// ==============================================================================
 
+/**
+ * Register a new infrastructure asset in the registry (Admin Only)
+ * @param {Object} data - AssetCreate schema payload
+ */
+export async function createAsset(data) {
+  try {
+    const res = await fetch(`${BASE_URL}/api/assets`, {
+      method: 'POST',
+      headers: getAuthHeaders({
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+      }),
+      body: JSON.stringify(data),
+    });
 
+    if (!res.ok) {
+      if (res.status === 401) {
+        handleUnauthorized();
+      }
+      const errData = await res.json().catch(() => ({}));
+      const msg = formatApiError(errData, res.status, 'register asset');
+      const error = new Error(msg);
+      error.status = res.status;
+      throw error;
+    }
+
+    return await res.json();
+  } catch (err) {
+    console.error('API Error in createAsset:', err);
+    throw err;
+  }
+}
+
+/**
+ * Record a new field inspection and recommended action (Admin Only)
+ * @param {string} assetId
+ * @param {Object} data - { inspection_date, inspection_type, findings, recommended_action, actual_action_taken, responsible_user, evidence_references }
+ */
+export async function createInspection(assetId, data) {
+  try {
+    const res = await fetch(`${BASE_URL}/api/assets/${encodeURIComponent(assetId)}/inspections`, {
+      method: 'POST',
+      headers: getAuthHeaders({
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+      }),
+      body: JSON.stringify(data),
+    });
+
+    if (!res.ok) {
+      if (res.status === 401) {
+        handleUnauthorized();
+      }
+      const errData = await res.json().catch(() => ({}));
+      const msg = formatApiError(errData, res.status, 'record inspection');
+      const error = new Error(msg);
+      error.status = res.status;
+      throw error;
+    }
+
+    return await res.json();
+  } catch (err) {
+    console.error(`API Error in createInspection(${assetId}):`, err);
+    throw err;
+  }
+}
+
+/**
+ * Update an inspection action status or intervention details (Admin Only)
+ * @param {string} inspectionId
+ * @param {Object} data - { status, actual_action_taken, evidence_references }
+ */
+export async function updateInspection(inspectionId, data) {
+  try {
+    const res = await fetch(`${BASE_URL}/api/inspections/${encodeURIComponent(inspectionId)}`, {
+      method: 'PATCH',
+      headers: getAuthHeaders({
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+      }),
+      body: JSON.stringify(data),
+    });
+
+    if (!res.ok) {
+      if (res.status === 401) {
+        handleUnauthorized();
+      }
+      const errData = await res.json().catch(() => ({}));
+      const msg = formatApiError(errData, res.status, 'update inspection');
+      const error = new Error(msg);
+      error.status = res.status;
+      throw error;
+    }
+
+    return await res.json();
+  } catch (err) {
+    console.error(`API Error in updateInspection(${inspectionId}):`, err);
+    throw err;
+  }
+}
+
+/**
+ * Verify outcome of an intervention in the closed-loop workflow (Admin Only)
+ * @param {string} inspectionId
+ * @param {Object} data - { verification_notes, verification_date, verifier_name, outcome, actual_action_taken }
+ */
+export async function verifyInspectionOutcome(inspectionId, data) {
+  try {
+    const res = await fetch(`${BASE_URL}/api/inspections/${encodeURIComponent(inspectionId)}/verify`, {
+      method: 'POST',
+      headers: getAuthHeaders({
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+      }),
+      body: JSON.stringify(data),
+    });
+
+    if (!res.ok) {
+      if (res.status === 401) {
+        handleUnauthorized();
+      }
+      const errData = await res.json().catch(() => ({}));
+      const msg = formatApiError(errData, res.status, 'verify inspection outcome');
+      const error = new Error(msg);
+      error.status = res.status;
+      throw error;
+    }
+
+    return await res.json();
+  } catch (err) {
+    console.error(`API Error in verifyInspectionOutcome(${inspectionId}):`, err);
+    throw err;
+  }
+}

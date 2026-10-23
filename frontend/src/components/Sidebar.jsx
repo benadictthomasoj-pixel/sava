@@ -5,52 +5,54 @@ import {
   MapPin,
   Activity,
   Bot,
-  ShieldAlert,
-  Server,
   ExternalLink,
 } from 'lucide-react';
+import { useLanguage } from '../context/LanguageContext';
 
 export default function Sidebar({
   currentRoute,
   onRouteChange,
   systemStatus,
   assetCount = 0,
+  isDemo = false,
 }) {
+  const { t } = useLanguage();
+
   const navItems = [
     {
       id: 'overview',
-      label: 'Dashboard Overview',
+      label: t('nav.overview', 'Dashboard Overview'),
       icon: LayoutDashboard,
       badge: null,
     },
     {
       id: 'registry',
-      label: 'Asset Registry',
+      label: t('nav.registry', 'Asset Registry'),
       icon: Layers,
       badge: assetCount > 0 ? `${assetCount}` : null,
     },
     {
       id: 'map',
-      label: 'Geospatial Map',
+      label: t('nav.map', 'Geospatial Map'),
       icon: MapPin,
       badge: 'GIS',
     },
     {
       id: 'heartbeat',
-      label: 'Digital Heartbeat',
+      label: t('nav.heartbeat', 'Digital Heartbeat'),
       icon: Activity,
       badge: 'Core',
     },
     {
       id: 'copilot',
-      label: 'AI Decision Copilot',
+      label: t('nav.copilot', 'AI Decision Copilot'),
       icon: Bot,
       badge: 'AI',
     },
   ];
 
   return (
-    <aside className="w-64 bg-slate-900 border-r border-slate-800 flex flex-col h-screen shrink-0 select-none">
+    <aside className="w-64 bg-slate-900 border-r border-slate-800 flex flex-col h-full shrink-0 select-none">
       {/* Brand Header */}
       <div className="p-5 border-b border-slate-800">
         <div className="flex items-center gap-3">
@@ -67,7 +69,7 @@ export default function Sidebar({
               </span>
             </div>
             <p className="text-[11px] font-medium text-slate-400">
-              Infrastructure Intelligence
+              {t('sidebar.brandTagline', 'Infrastructure Intelligence')}
             </p>
           </div>
         </div>
@@ -76,7 +78,7 @@ export default function Sidebar({
       {/* Navigation Links */}
       <nav className="flex-1 p-3 space-y-1.5 overflow-y-auto">
         <div className="px-3 py-2 text-[11px] font-semibold uppercase tracking-wider text-slate-400">
-          Intelligence Modules
+          {t('sidebar.intelligenceModules', 'Intelligence Modules')}
         </div>
         {navItems.map((item) => {
           const Icon = item.icon;
@@ -97,11 +99,11 @@ export default function Sidebar({
                     isActive ? 'text-cyan-400' : 'text-slate-400'
                   }`}
                 />
-                <span>{item.label}</span>
+                <span className="truncate">{item.label}</span>
               </div>
               {item.badge && (
                 <span
-                  className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${
+                  className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full shrink-0 ${
                     isActive
                       ? 'bg-cyan-500/20 text-cyan-300'
                       : 'bg-slate-800 text-slate-400'
@@ -115,19 +117,23 @@ export default function Sidebar({
         })}
 
         <div className="pt-4 px-3 py-2 text-[11px] font-semibold uppercase tracking-wider text-slate-400">
-          Environment
+          {t('sidebar.environment', 'Environment')}
         </div>
         <div className="mx-2 p-3 rounded-lg bg-slate-950/60 border border-slate-800/80 text-xs space-y-1.5">
           <div className="flex items-center justify-between text-slate-400">
-            <span>Database</span>
-            <span className="font-mono text-[11px] text-cyan-400">SQLite</span>
+            <span>{t('sidebar.database', 'Database')}</span>
+            <span className="font-mono text-[11px] text-cyan-400">
+              {isDemo ? t('common.simulated', 'Simulated') : 'SQLite'}
+            </span>
           </div>
           <div className="flex items-center justify-between text-slate-400">
-            <span>Dataset Mode</span>
-            <span className="font-semibold text-amber-400 text-[11px]">Synthetic Mock</span>
+            <span>{t('sidebar.datasetMode', 'Dataset Mode')}</span>
+            <span className="font-semibold text-amber-400 text-[11px]">
+              {isDemo ? t('sidebar.demoSpecimen', 'Demo Specimen') : t('sidebar.syntheticMock', 'Synthetic Mock')}
+            </span>
           </div>
           <div className="flex items-center justify-between text-slate-400">
-            <span>API Docs</span>
+            <span>{t('sidebar.apiDocs', 'API Docs')}</span>
             <a
               href="http://localhost:8000/docs"
               target="_blank"
@@ -146,16 +152,24 @@ export default function Sidebar({
           <div className="flex items-center gap-2">
             <span
               className={`w-2.5 h-2.5 rounded-full ${
-                systemStatus === 'healthy'
+                isDemo
+                  ? 'bg-amber-400 shadow-sm shadow-amber-400/50'
+                  : systemStatus === 'healthy'
                   ? 'bg-emerald-500 shadow-sm shadow-emerald-500/50 animate-pulse'
                   : 'bg-rose-500 shadow-sm shadow-rose-500/50'
               }`}
             />
             <span className="text-xs font-medium text-slate-300">
-              {systemStatus === 'healthy' ? 'API Online' : 'Connecting API...'}
+              {isDemo
+                ? t('common.demoSandbox', 'Demo Sandbox')
+                : systemStatus === 'healthy'
+                ? t('common.online', 'API Online')
+                : t('common.connecting', 'Connecting API...')}
             </span>
           </div>
-          <span className="text-[11px] font-mono text-slate-400">Port 8000</span>
+          <span className="text-[11px] font-mono text-slate-400">
+            {isDemo ? t('common.isolated', 'Isolated') : 'Port 8000'}
+          </span>
         </div>
       </div>
     </aside>
