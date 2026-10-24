@@ -11,10 +11,10 @@ export default function StatCard({
   onClick,
 }) {
   const colorMap = {
-    brand: 'text-cyan-400 bg-cyan-950/40 border-cyan-800/40',
-    rose: 'text-rose-400 bg-rose-950/40 border-rose-800/40',
-    amber: 'text-amber-400 bg-amber-950/40 border-amber-800/40',
-    emerald: 'text-emerald-400 bg-emerald-950/40 border-emerald-800/40',
+    brand: 'text-green-700 bg-green-50 border-green-200',
+    rose: 'text-red-700 bg-red-50 border-red-200',
+    amber: 'text-amber-700 bg-amber-50 border-amber-200',
+    emerald: 'text-green-700 bg-green-50 border-green-200',
   };
 
   const accent = colorMap[highlightColor] || colorMap.brand;
@@ -22,25 +22,25 @@ export default function StatCard({
   return (
     <div
       onClick={onClick}
-      className={`relative p-5 rounded-xl bg-slate-900/80 border border-slate-800/80 hover:border-slate-700 transition-all duration-200 shadow-lg ${
+      className={`relative p-5 rounded-xl bg-white border border-slate-200 hover:border-slate-300 transition-all duration-200 shadow-sm hover:shadow-md ${
         onClick ? 'cursor-pointer hover:scale-[1.01]' : ''
       }`}
     >
       <div className="flex items-start justify-between">
         <div className="space-y-1">
-          <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">
+          <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">
             {title}
           </p>
           <div className="flex items-baseline gap-2">
-            <span className="text-3xl font-extrabold text-white tracking-tight">
+            <span className="text-3xl font-extrabold text-slate-900 tracking-tight">
               {value}
             </span>
             {trend && (
               <span
-                className={`text-xs font-medium px-2 py-0.5 rounded-full ${
+                className={`text-xs font-medium px-2 py-0.5 rounded-full border ${
                   trendPositive
-                    ? 'text-emerald-400 bg-emerald-500/10'
-                    : 'text-rose-400 bg-rose-500/10'
+                    ? 'text-green-700 bg-green-50 border-green-200'
+                    : 'text-red-700 bg-red-50 border-red-200'
                 }`}
               >
                 {trend}
@@ -48,7 +48,7 @@ export default function StatCard({
             )}
           </div>
           {subtitle && (
-            <p className="text-xs text-slate-400 pt-1">
+            <p className="text-xs text-slate-500 pt-1">
               {subtitle}
             </p>
           )}

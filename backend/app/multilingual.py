@@ -7,7 +7,7 @@ Malayalam (മലയാളം), and Kannada (ಕನ್ನಡ).
 """
 
 import re
-from typing import Dict, List, Optional, Set, Tuple
+from typing import Any, Dict, List, Optional, Set, Tuple
 
 # Supported Language Codes
 LANG_EN = "en"

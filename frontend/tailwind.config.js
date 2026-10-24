@@ -8,20 +8,27 @@ export default {
     extend: {
       colors: {
         brand: {
-          50: '#f0f7ff',
-          100: '#e0effe',
-          500: '#0284c7',
-          600: '#0369a1',
-          700: '#075985',
-          800: '#0c4a6e',
-          900: '#082f49',
-          950: '#031726',
+          green: '#15803D',
+          hover: '#166534',
+          light: '#DCFCE7',
+          dark: '#166534',
+          focus: '#22C55E',
         },
-        navy: {
-          800: '#0f172a',
-          900: '#0b1120',
-          950: '#060a12',
-        }
+        surface: {
+          app: '#F8FAFC',
+          sidebar: '#FFFFFF',
+          header: '#FFFFFF',
+          card: '#FFFFFF',
+          secondary: '#F1F5F9',
+          border: '#E2E8F0',
+          inputBorder: '#CBD5E1',
+        },
+        risk: {
+          critical: '#DC2626',
+          warning: '#D97706',
+          healthy: '#15803D',
+          operational: '#15803D',
+        },
       },
       fontFamily: {
         sans: [

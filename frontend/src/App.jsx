@@ -29,6 +29,29 @@ export function DashboardView({ isDemo = false, onExitDemo }) {
   const [systemStatus, setSystemStatus] = useState(isDemo ? 'demo' : 'connecting');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+
+  // Close mobile drawer on Escape key press
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape' && isMobileMenuOpen) {
+        setIsMobileMenuOpen(false);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isMobileMenuOpen]);
+
+  // Automatically close mobile drawer when window is resized to desktop
+  useEffect(() => {
+    const handleResize = () => {
+      if (window.innerWidth >= 768 && isMobileMenuOpen) {
+        setIsMobileMenuOpen(false);
+      }
+    };
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, [isMobileMenuOpen]);
 
   const loadData = async () => {
     setLoading(true);
@@ -128,22 +151,57 @@ export function DashboardView({ isDemo = false, onExitDemo }) {
   const currentMeta = routeMeta[currentRoute] || routeMeta.overview;
 
   return (
-    <div className="flex flex-col h-screen w-screen overflow-hidden bg-slate-950 text-slate-100 font-sans">
+    <div className="flex flex-col h-screen w-screen overflow-hidden bg-slate-50 text-slate-900 font-sans">
       {/* Persistent Demo Mode Banner */}
       {isDemo && <DemoBanner onExitDemo={onExitDemo} />}
 
-      <div className="flex-1 flex overflow-hidden">
-        {/* Fixed Left Navigation Sidebar */}
-        <Sidebar
-          currentRoute={currentRoute}
-          onRouteChange={(route) => setCurrentRoute(route)}
-          systemStatus={isDemo ? 'demo' : systemStatus}
-          assetCount={assets.length}
-          isDemo={isDemo}
-        />
+      <div className="flex-1 flex overflow-hidden relative">
+        {/* Mobile Navigation Drawer Backdrop */}
+        {isMobileMenuOpen && (
+          <div
+            className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-40 md:hidden transition-opacity"
+            onClick={() => setIsMobileMenuOpen(false)}
+            aria-hidden="true"
+          />
+        )}
+
+        {/* Mobile Navigation Drawer */}
+        {isMobileMenuOpen && (
+          <div
+            id="mobile-sidebar-drawer"
+            role="dialog"
+            aria-modal="true"
+            aria-label="Navigation drawer"
+            className="fixed inset-y-0 left-0 z-50 w-72 max-w-[85vw] bg-white border-r border-slate-200 flex flex-col shadow-2xl md:hidden transition-transform duration-200"
+          >
+            <Sidebar
+              currentRoute={currentRoute}
+              onRouteChange={(route) => {
+                setCurrentRoute(route);
+                setIsMobileMenuOpen(false);
+              }}
+              systemStatus={isDemo ? 'demo' : systemStatus}
+              assetCount={assets.length}
+              isDemo={isDemo}
+              isMobile={true}
+              onClose={() => setIsMobileMenuOpen(false)}
+            />
+          </div>
+        )}
+
+        {/* Desktop Fixed Left Navigation Sidebar */}
+        <div className="hidden md:flex w-64 h-full shrink-0">
+          <Sidebar
+            currentRoute={currentRoute}
+            onRouteChange={(route) => setCurrentRoute(route)}
+            systemStatus={isDemo ? 'demo' : systemStatus}
+            assetCount={assets.length}
+            isDemo={isDemo}
+          />
+        </div>
 
         {/* Main Content Area */}
-        <div className="flex-1 flex flex-col h-full overflow-hidden">
+        <div className="flex-1 flex flex-col h-full overflow-hidden min-w-0">
           {/* Top Header */}
           <Header
             pageTitle={currentMeta.title}
@@ -156,31 +214,33 @@ export function DashboardView({ isDemo = false, onExitDemo }) {
             isAdmin={isDemo ? false : isAdmin}
             isDemo={isDemo}
             onExitDemo={onExitDemo}
+            onToggleMobileMenu={() => setIsMobileMenuOpen((prev) => !prev)}
+            isMobileMenuOpen={isMobileMenuOpen}
           />
 
         {/* Scrollable Viewport */}
-        <main className="flex-1 overflow-y-auto p-6">
+        <main className="flex-1 overflow-y-auto p-4 sm:p-6 bg-slate-50">
           {/* Backend Offline Warning Banner if connection failed */}
           {error && (
-            <div className="mb-6 p-4 rounded-xl bg-rose-500/10 border border-rose-500/30 flex items-start justify-between gap-4">
+            <div className="mb-6 p-4 rounded-xl bg-red-50 border border-red-200 flex items-start justify-between gap-4">
               <div className="flex items-start gap-3">
-                <AlertCircle className="w-5 h-5 text-rose-400 shrink-0 mt-0.5" />
+                <AlertCircle className="w-5 h-5 text-red-600 shrink-0 mt-0.5" />
                 <div className="space-y-1">
-                  <h4 className="text-sm font-bold text-rose-300">
+                  <h4 className="text-sm font-bold text-red-800">
                     Backend Connection Required
                   </h4>
-                  <p className="text-xs text-rose-200/80">
+                  <p className="text-xs text-red-700">
                     {error}
                   </p>
-                  <p className="text-xs text-slate-400">
-                    Run <code className="text-cyan-400 bg-slate-900 px-1.5 py-0.5 rounded font-mono">cd backend && source venv/bin/activate && uvicorn app.main:app --port 8000</code> to start the FastAPI server.
+                  <p className="text-xs text-slate-500">
+                    Run <code className="text-green-700 bg-slate-100 px-1.5 py-0.5 rounded font-mono">cd backend && source venv/bin/activate && uvicorn app.main:app --port 8000</code> to start the FastAPI server.
                   </p>
                 </div>
               </div>
               <button
                 onClick={loadData}
                 disabled={loading}
-                className="px-3 py-1.5 rounded-lg bg-rose-600/30 hover:bg-rose-600/40 text-rose-200 text-xs font-semibold flex items-center gap-1.5 border border-rose-500/30 transition-colors"
+                className="px-3 py-1.5 rounded-lg bg-red-600 hover:bg-red-700 text-white text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer shadow-sm"
               >
                 <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
                 <span>Retry Connection</span>
@@ -294,10 +354,10 @@ function AppRoot() {
 
   if (loading) {
     return (
-      <div className="flex h-screen w-screen items-center justify-center bg-slate-950 text-slate-400 font-sans">
+      <div className="flex h-screen w-screen items-center justify-center bg-slate-50 text-slate-600 font-sans">
         <div className="flex flex-col items-center gap-3">
-          <div className="w-10 h-10 border-2 border-cyan-500 border-t-transparent rounded-full animate-spin" />
-          <span className="text-xs uppercase tracking-widest text-slate-400 font-medium">
+          <div className="w-10 h-10 border-2 border-green-600 border-t-transparent rounded-full animate-spin" />
+          <span className="text-xs uppercase tracking-widest text-slate-500 font-medium">
             Verifying AAYAM Session...
           </span>
         </div>

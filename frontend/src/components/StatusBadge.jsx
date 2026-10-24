@@ -9,35 +9,35 @@ export default function StatusBadge({ status, size = 'sm' }) {
       case 'Critical Attention':
       case 'Critical':
         return {
-          bg: 'bg-rose-500/10 text-rose-400 border-rose-500/30',
-          dot: 'bg-rose-500 animate-pulse',
+          bg: 'bg-red-50 text-red-700 border-red-200 font-semibold',
+          dot: 'bg-red-600 animate-pulse',
         };
       case 'High Risk':
       case 'High':
         return {
-          bg: 'bg-amber-500/10 text-amber-400 border-amber-500/30',
-          dot: 'bg-amber-500',
+          bg: 'bg-amber-50 text-amber-800 border-amber-200 font-semibold',
+          dot: 'bg-amber-600',
         };
       case 'Requires Inspection':
       case 'Moderate':
         return {
-          bg: 'bg-yellow-500/10 text-yellow-400 border-yellow-500/30',
-          dot: 'bg-yellow-400',
+          bg: 'bg-amber-50 text-amber-700 border-amber-200 font-medium',
+          dot: 'bg-amber-500',
         };
       case 'Operational':
       case 'Low':
         return {
-          bg: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30',
-          dot: 'bg-emerald-400',
+          bg: 'bg-green-50 text-green-700 border-green-200 font-medium',
+          dot: 'bg-green-600',
         };
       case 'Under Maintenance':
         return {
-          bg: 'bg-blue-500/10 text-blue-400 border-blue-500/30',
-          dot: 'bg-blue-400',
+          bg: 'bg-sky-50 text-sky-800 border-sky-200 font-medium',
+          dot: 'bg-sky-600',
         };
       default:
         return {
-          bg: 'bg-slate-700/30 text-slate-300 border-slate-600',
+          bg: 'bg-slate-100 text-slate-700 border-slate-200 font-medium',
           dot: 'bg-slate-400',
         };
     }
