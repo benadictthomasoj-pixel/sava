@@ -1,0 +1,40 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 450" width="800" height="450">
+  <defs>
+    <linearGradient id="headerGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#0F172A" />
+      <stop offset="100%" stop-color="#1E293B" />
+    </linearGradient>
+  </defs>
+  
+  <!-- Background Canvas -->
+  <rect width="800" height="450" fill="#0F172A"/>
+  <rect x="20" y="20" width="760" height="410" fill="#0B132B" stroke="#1E293B" stroke-width="2" rx="8"/>
+
+  <!-- Top Banner / Badge -->
+  <rect x="35" y="35" width="730" height="50" fill="#1E293B" rx="6"/>
+  <rect x="45" y="45" width="12" height="30" fill="#DC2626" rx="2"/>
+  <text x="70" y="66" fill="#F8FAFC" font-size="16" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-weight="bold">Mandovi Bridge Pier 4 & 5 - Sonar Bathymetry Profile</text>
+  <rect x="610" y="46" width="145" height="26" fill="#DC2626" opacity="0.2" rx="4"/>
+  <text x="682" y="63" fill="#DC2626" font-size="10" font-family="sans-serif" font-weight="bold" text-anchor="middle">SONAR BATHYMETRY AUDIT</text>
+
+  <!-- Central Technical Graphic -->
+  <g transform="translate(0, 10)">
+    
+            <path d="M 60 220 Q 200 210, 350 250 T 650 300 T 740 230" fill="none" stroke="#38BDF8" stroke-width="3" stroke-dasharray="6,4"/>
+            <rect x="280" y="80" width="80" height="190" fill="#64748B" rx="4"/>
+            <rect x="440" y="80" width="80" height="190" fill="#64748B" rx="4"/>
+            <path d="M 240 270 Q 320 340, 400 270" fill="#EF4444" opacity="0.35"/>
+            <path d="M 240 270 Q 320 340, 400 270" fill="none" stroke="#DC2626" stroke-width="3"/>
+            <text x="320" y="325" fill="#EF4444" font-size="12" font-family="sans-serif" font-weight="bold" text-anchor="middle">SCOUR CONE: -2.4m</text>
+            <text x="320" y="170" fill="#FFFFFF" font-size="14" font-family="sans-serif" font-weight="bold" text-anchor="middle">Pier 4</text>
+            <text x="480" y="170" fill="#FFFFFF" font-size="14" font-family="sans-serif" font-weight="bold" text-anchor="middle">Pier 5</text>
+        
+  </g>
+
+  <!-- Bottom Details Bar -->
+  <rect x="35" y="360" width="730" height="60" fill="#1E293B" rx="6"/>
+  <text x="50" y="382" fill="#94A3B8" font-size="11" font-family="monospace">Asset: Mandovi River Estuary Bridge (ASSET-BRG-001)</text>
+  <text x="50" y="402" fill="#94A3B8" font-size="11" font-family="monospace">Date: 2023-11-14 | Agency: Goa PWD Marine Division</text>
+  <text x="420" y="382" fill="#CBD5E1" font-size="11" font-family="monospace">Observed Scour Depth: 2.40m below design riverbed level</text>
+  <text x="420" y="402" fill="#DC2626" font-size="11" font-family="monospace" font-weight="bold">Footing Exposure: High | Severity: Critical Attention</text>
+</svg>

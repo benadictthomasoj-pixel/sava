@@ -1,0 +1,37 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 450" width="800" height="450">
+  <defs>
+    <linearGradient id="headerGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#0F172A" />
+      <stop offset="100%" stop-color="#1E293B" />
+    </linearGradient>
+  </defs>
+  
+  <!-- Background Canvas -->
+  <rect width="800" height="450" fill="#0F172A"/>
+  <rect x="20" y="20" width="760" height="410" fill="#0B132B" stroke="#1E293B" stroke-width="2" rx="8"/>
+
+  <!-- Top Banner / Badge -->
+  <rect x="35" y="35" width="730" height="50" fill="#1E293B" rx="6"/>
+  <rect x="45" y="45" width="12" height="30" fill="#15803D" rx="2"/>
+  <text x="70" y="66" fill="#F8FAFC" font-size="16" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-weight="bold">Clarifier Unit 3 Radial Scraper Mechanism</text>
+  <rect x="610" y="46" width="145" height="26" fill="#15803D" opacity="0.2" rx="4"/>
+  <text x="682" y="63" fill="#15803D" font-size="10" font-family="sans-serif" font-weight="bold" text-anchor="middle">ELECTROMECHANICAL AUDIT</text>
+
+  <!-- Central Technical Graphic -->
+  <g transform="translate(0, 10)">
+    
+            <circle cx="400" cy="210" r="120" fill="none" stroke="#334155" stroke-width="24"/>
+            <circle cx="400" cy="210" r="108" fill="#1E293B" stroke="#0284C7" stroke-width="2"/>
+            <circle cx="400" cy="210" r="28" fill="#64748B"/>
+            <line x1="400" y1="210" x2="490" y2="150" stroke="#F59E0B" stroke-width="6" stroke-linecap="round"/>
+            <text x="400" y="215" fill="#FFFFFF" font-size="10" font-family="sans-serif" font-weight="bold" text-anchor="middle">HUB</text>
+        
+  </g>
+
+  <!-- Bottom Details Bar -->
+  <rect x="35" y="360" width="730" height="60" fill="#1E293B" rx="6"/>
+  <text x="50" y="382" fill="#94A3B8" font-size="11" font-family="monospace">Asset: Chambal Bulk Water Treatment Unit 3 (ASSET-WTP-002)</text>
+  <text x="50" y="402" fill="#94A3B8" font-size="11" font-family="monospace">Clarifier Diameter: 42.0m | Circular Sedimentation Tank</text>
+  <text x="420" y="382" fill="#CBD5E1" font-size="11" font-family="monospace">Scraper Drive Current: 142% Rated Motor Amperage</text>
+  <text x="420" y="402" fill="#15803D" font-size="11" font-family="monospace" font-weight="bold">Remediation: Center turntable grease pack refreshed</text>
+</svg>

@@ -1,0 +1,36 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 450" width="800" height="450">
+  <defs>
+    <linearGradient id="headerGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#0F172A" />
+      <stop offset="100%" stop-color="#1E293B" />
+    </linearGradient>
+  </defs>
+  
+  <!-- Background Canvas -->
+  <rect width="800" height="450" fill="#0F172A"/>
+  <rect x="20" y="20" width="760" height="410" fill="#0B132B" stroke="#1E293B" stroke-width="2" rx="8"/>
+
+  <!-- Top Banner / Badge -->
+  <rect x="35" y="35" width="730" height="50" fill="#1E293B" rx="6"/>
+  <rect x="45" y="45" width="12" height="30" fill="#D97706" rx="2"/>
+  <text x="70" y="66" fill="#F8FAFC" font-size="16" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-weight="bold">Western Ghats Ghat-Road Box Culvert Km 142/6</text>
+  <rect x="610" y="46" width="145" height="26" fill="#D97706" opacity="0.2" rx="4"/>
+  <text x="682" y="63" fill="#D97706" font-size="10" font-family="sans-serif" font-weight="bold" text-anchor="middle">FIELD HYDROLOGY & STRUCTURE</text>
+
+  <!-- Central Technical Graphic -->
+  <g transform="translate(0, 10)">
+    
+            <polygon points="120,120 680,120 740,320 60,320" fill="#334155" opacity="0.6"/>
+            <rect x="250" y="160" width="300" height="150" fill="#1E293B" stroke="#94A3B8" stroke-width="4"/>
+            <rect x="250" y="250" width="300" height="60" fill="#78350F" opacity="0.8"/>
+            <text x="400" y="285" fill="#FDE68A" font-size="13" font-family="sans-serif" font-weight="bold" text-anchor="middle">SILT DEPOSIT: 60% BARREL</text>
+        
+  </g>
+
+  <!-- Bottom Details Bar -->
+  <rect x="35" y="360" width="730" height="60" fill="#1E293B" rx="6"/>
+  <text x="50" y="382" fill="#94A3B8" font-size="11" font-family="monospace">Asset: Western Ghats Culvert Km 142/6 (ASSET-HWY-003)</text>
+  <text x="50" y="402" fill="#94A3B8" font-size="11" font-family="monospace">Culvert Type: Reinforced Concrete Single-Cell Box</text>
+  <text x="420" y="382" fill="#CBD5E1" font-size="11" font-family="monospace">Vulnerability: Monsoon Silt Block (>60% cross-section)</text>
+  <text x="420" y="402" fill="#D97706" font-size="11" font-family="monospace" font-weight="bold">Risk Indicator: Mountain slope runoff with heavy debris</text>
+</svg>

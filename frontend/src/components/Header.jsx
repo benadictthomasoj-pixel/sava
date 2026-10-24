@@ -10,6 +10,7 @@ import {
   X,
 } from 'lucide-react';
 import LanguageSelector from './LanguageSelector';
+import GlobalSearch from './GlobalSearch';
 import { useLanguage } from '../context/LanguageContext';
 
 export default function Header({
@@ -25,11 +26,13 @@ export default function Header({
   onExitDemo,
   onToggleMobileMenu,
   isMobileMenuOpen = false,
+  onSelectAsset,
+  onOpenDocument,
 }) {
   const { t } = useLanguage();
 
   return (
-    <header className="h-16 border-b border-slate-200 bg-white/95 backdrop-blur px-4 sm:px-6 flex items-center justify-between z-10 shrink-0 shadow-xs">
+    <header className="h-16 border-b border-slate-200 bg-white/95 backdrop-blur px-4 sm:px-6 flex items-center justify-between gap-4 z-10 shrink-0 shadow-xs">
       <div className="flex items-center gap-3 min-w-0">
         {onToggleMobileMenu && (
           <button
@@ -48,14 +51,23 @@ export default function Header({
             {pageTitle}
           </h1>
           {subtitle && (
-            <p className="text-[11px] sm:text-xs text-slate-500 truncate hidden xs:block">
+            <p className="text-[11px] sm:text-xs text-slate-500 truncate hidden lg:block">
               {subtitle}
             </p>
           )}
         </div>
       </div>
 
-      <div className="flex items-center gap-3 sm:gap-4">
+      {/* Center Global Search Bar */}
+      <div className="flex-1 max-w-md hidden sm:block">
+        <GlobalSearch
+          onSelectAsset={onSelectAsset}
+          onOpenDocument={onOpenDocument}
+          isDemo={isDemo}
+        />
+      </div>
+
+      <div className="flex items-center gap-2 sm:gap-3 shrink-0">
         {/* Prototype Mock Data Disclaimer Pill */}
         <div className="hidden xl:flex items-center gap-2 px-3 py-1 rounded-full bg-amber-50 border border-amber-200 text-amber-800 text-xs font-medium">
           <AlertTriangle className="w-3.5 h-3.5 shrink-0 text-amber-600" />

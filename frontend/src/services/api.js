@@ -576,3 +576,214 @@ export async function verifyInspectionOutcome(inspectionId, data) {
     throw err;
   }
 }
+
+// ==============================================================================
+// GLOBAL SEARCH & INTELLIGENCE EXTENSIONS
+// ==============================================================================
+
+/**
+ * Global multi-entity search across assets, findings, and indexed evidence documents
+ * @param {string} query
+ * @param {number} limit
+ */
+export async function globalSearch(query, limit = 15) {
+  try {
+    const res = await fetch(
+      `${BASE_URL}/api/search?q=${encodeURIComponent(query)}&limit=${limit}`,
+      {
+        headers: getAuthHeaders({ 'Accept': 'application/json' }),
+      }
+    );
+    if (!res.ok) {
+      if (res.status === 401) handleUnauthorized();
+      const errData = await res.json().catch(() => ({}));
+      throw new Error(formatApiError(errData, res.status, 'search platform'));
+    }
+    return await res.json();
+  } catch (err) {
+    console.error('API Error in globalSearch:', err);
+    throw err;
+  }
+}
+
+/**
+ * Fetch visual media for an asset
+ * @param {string} assetId
+ * @param {string|null} category
+ */
+export async function fetchAssetMedia(assetId, category = null) {
+  try {
+    const url = `${BASE_URL}/api/assets/${encodeURIComponent(assetId)}/images${
+      category ? `?category=${encodeURIComponent(category)}` : ''
+    }`;
+    const res = await fetch(url, {
+      headers: getAuthHeaders({ 'Accept': 'application/json' }),
+    });
+    if (!res.ok) {
+      if (res.status === 401) handleUnauthorized();
+      const errData = await res.json().catch(() => ({}));
+      throw new Error(formatApiError(errData, res.status, 'fetch asset media'));
+    }
+    return await res.json();
+  } catch (err) {
+    console.error(`API Error in fetchAssetMedia(${assetId}):`, err);
+    throw err;
+  }
+}
+
+/**
+ * Upload visual media for an asset
+ * @param {string} assetId
+ * @param {FormData} formData
+ */
+export async function uploadAssetMedia(assetId, formData) {
+  try {
+    const headers = getAuthHeaders(); // note: no Content-Type header so browser adds multipart boundary
+    const res = await fetch(`${BASE_URL}/api/assets/${encodeURIComponent(assetId)}/images`, {
+      method: 'POST',
+      headers,
+      body: formData,
+    });
+    if (!res.ok) {
+      if (res.status === 401) handleUnauthorized();
+      const errData = await res.json().catch(() => ({}));
+      throw new Error(formatApiError(errData, res.status, 'upload asset media'));
+    }
+    return await res.json();
+  } catch (err) {
+    console.error(`API Error in uploadAssetMedia(${assetId}):`, err);
+    throw err;
+  }
+}
+
+/**
+ * Fetch evidence library catalog
+ */
+export async function fetchEvidenceCatalog() {
+  try {
+    const res = await fetch(`${BASE_URL}/api/evidence`, {
+      headers: getAuthHeaders({ 'Accept': 'application/json' }),
+    });
+    if (!res.ok) {
+      if (res.status === 401) handleUnauthorized();
+      const errData = await res.json().catch(() => ({}));
+      throw new Error(formatApiError(errData, res.status, 'fetch evidence catalog'));
+    }
+    return await res.json();
+  } catch (err) {
+    console.error('API Error in fetchEvidenceCatalog:', err);
+    throw err;
+  }
+}
+
+/**
+ * Fetch provenance sources for an asset
+ * @param {string} assetId
+ */
+export async function fetchAssetSources(assetId) {
+  try {
+    const res = await fetch(`${BASE_URL}/api/assets/${encodeURIComponent(assetId)}/sources`, {
+      headers: getAuthHeaders({ 'Accept': 'application/json' }),
+    });
+    if (!res.ok) {
+      if (res.status === 401) handleUnauthorized();
+      const errData = await res.json().catch(() => ({}));
+      throw new Error(formatApiError(errData, res.status, 'fetch asset sources'));
+    }
+    return await res.json();
+  } catch (err) {
+    console.error(`API Error in fetchAssetSources(${assetId}):`, err);
+    throw err;
+  }
+}
+
+/**
+ * Fetch structured engineering findings for an asset
+ * @param {string} assetId
+ */
+export async function fetchAssetFindings(assetId) {
+  try {
+    const res = await fetch(`${BASE_URL}/api/assets/${encodeURIComponent(assetId)}/findings`, {
+      headers: getAuthHeaders({ 'Accept': 'application/json' }),
+    });
+    if (!res.ok) {
+      if (res.status === 401) handleUnauthorized();
+      const errData = await res.json().catch(() => ({}));
+      throw new Error(formatApiError(errData, res.status, 'fetch asset findings'));
+    }
+    return await res.json();
+  } catch (err) {
+    console.error(`API Error in fetchAssetFindings(${assetId}):`, err);
+    throw err;
+  }
+}
+
+/**
+ * Create a new engineering finding for an asset (Admin or Inspector)
+ * @param {string} assetId
+ * @param {Object} data
+ */
+export async function createAssetFinding(assetId, data) {
+  try {
+    const res = await fetch(`${BASE_URL}/api/assets/${encodeURIComponent(assetId)}/findings`, {
+      method: 'POST',
+      headers: getAuthHeaders({
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+      }),
+      body: JSON.stringify(data),
+    });
+    if (!res.ok) {
+      if (res.status === 401) handleUnauthorized();
+      const errData = await res.json().catch(() => ({}));
+      throw new Error(formatApiError(errData, res.status, 'create asset finding'));
+    }
+    return await res.json();
+  } catch (err) {
+    console.error(`API Error in createAssetFinding(${assetId}):`, err);
+    throw err;
+  }
+}
+
+/**
+ * Fetch unified complete intelligence profile for an asset
+ * @param {string} assetId
+ */
+export async function fetchAssetIntelligence(assetId) {
+  try {
+    const res = await fetch(`${BASE_URL}/api/assets/${encodeURIComponent(assetId)}/intelligence`, {
+      headers: getAuthHeaders({ 'Accept': 'application/json' }),
+    });
+    if (!res.ok) {
+      if (res.status === 401) handleUnauthorized();
+      const errData = await res.json().catch(() => ({}));
+      throw new Error(formatApiError(errData, res.status, 'fetch asset intelligence'));
+    }
+    return await res.json();
+  } catch (err) {
+    console.error(`API Error in fetchAssetIntelligence(${assetId}):`, err);
+    throw err;
+  }
+}
+
+/**
+ * Generate/fetch structured printable intelligence report for an asset
+ * @param {string} assetId
+ */
+export async function fetchAssetReport(assetId) {
+  try {
+    const res = await fetch(`${BASE_URL}/api/assets/${encodeURIComponent(assetId)}/report`, {
+      headers: getAuthHeaders({ 'Accept': 'application/json' }),
+    });
+    if (!res.ok) {
+      if (res.status === 401) handleUnauthorized();
+      const errData = await res.json().catch(() => ({}));
+      throw new Error(formatApiError(errData, res.status, 'fetch asset report'));
+    }
+    return await res.json();
+  } catch (err) {
+    console.error(`API Error in fetchAssetReport(${assetId}):`, err);
+    throw err;
+  }
+}
+

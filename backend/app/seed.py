@@ -1,7 +1,7 @@
 import logging
-from app.database import engine, Base, SessionLocal
-from app.models import Asset, Inspection
-from app.seed_data import SAMPLE_ASSETS
+from app.database import engine, Base, SessionLocal, ensure_schema_compatibility
+from app.models import Asset, Inspection, AssetMedia, EvidenceSource, AssetFinding
+from app.seed_data import SAMPLE_ASSETS, SAMPLE_MEDIA, SAMPLE_SOURCES, SAMPLE_FINDINGS
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("aayam.seed")
@@ -68,9 +68,11 @@ SAMPLE_INSPECTIONS = [
 
 def init_db(force_reseed: bool = False):
     """
-    Initializes SQLite tables and seeds the initial mock infrastructure assets and inspections.
+    Initializes SQLite tables and seeds the initial mock infrastructure assets, inspections,
+    visual media, evidence sources, and structured engineering findings.
     """
     logger.info("Initializing database schema...")
+    ensure_schema_compatibility(engine)
     Base.metadata.create_all(bind=engine)
 
     db = SessionLocal()
@@ -79,6 +81,9 @@ def init_db(force_reseed: bool = False):
         if count == 0 or force_reseed:
             if force_reseed and count > 0:
                 logger.info("Force re-seed requested. Clearing existing records...")
+                db.query(AssetFinding).delete()
+                db.query(EvidenceSource).delete()
+                db.query(AssetMedia).delete()
                 db.query(Inspection).delete()
                 db.query(Asset).delete()
                 db.commit()
@@ -94,6 +99,7 @@ def init_db(force_reseed: bool = False):
                     latitude=item["latitude"],
                     longitude=item["longitude"],
                     construction_year=item.get("construction_year"),
+                    ownership_authority=item.get("ownership_authority", "State Public Works Department (PWD)"),
                     status=item["status"],
                     data_source=item["data_source"],
                     risk_score=item.get("risk_score", 15.0),
@@ -129,7 +135,78 @@ def init_db(force_reseed: bool = False):
             db.commit()
             logger.info("Seeded initial inspections.")
 
-        logger.info(f"Database ready: {db.query(Asset).count()} assets, {db.query(Inspection).count()} inspections.")
+        # Seed visual media if table is empty
+        media_count = db.query(AssetMedia).count()
+        if media_count == 0:
+            logger.info(f"Seeding {len(SAMPLE_MEDIA)} visual media records...")
+            for m_data in SAMPLE_MEDIA:
+                media = AssetMedia(
+                    id=m_data["id"],
+                    asset_id=m_data["asset_id"],
+                    inspection_id=m_data.get("inspection_id"),
+                    file_name=m_data["file_name"],
+                    file_path=m_data["file_path"],
+                    caption=m_data["caption"],
+                    category=m_data.get("category", "General"),
+                    uploader_name=m_data.get("uploader_name", "Authorized Engineering Officer"),
+                    captured_at=m_data.get("captured_at"),
+                    verification_status=m_data.get("verification_status", "Verified"),
+                )
+                db.add(media)
+            db.commit()
+            logger.info("Seeded visual media records.")
+
+        # Seed evidence sources if table is empty
+        sources_count = db.query(EvidenceSource).count()
+        if sources_count == 0:
+            logger.info(f"Seeding {len(SAMPLE_SOURCES)} evidence sources...")
+            for s_data in SAMPLE_SOURCES:
+                source = EvidenceSource(
+                    id=s_data["id"],
+                    asset_id=s_data["asset_id"],
+                    title=s_data["title"],
+                    source_type=s_data["source_type"],
+                    provider=s_data["provider"],
+                    document_name=s_data.get("document_name"),
+                    page_or_paragraph=s_data.get("page_or_paragraph"),
+                    excerpt=s_data.get("excerpt"),
+                    verification_status=s_data.get("verification_status", "Verified Official"),
+                    publication_date=s_data.get("publication_date"),
+                )
+                db.add(source)
+            db.commit()
+            logger.info("Seeded evidence sources.")
+
+        # Seed structured findings if table is empty
+        findings_count = db.query(AssetFinding).count()
+        if findings_count == 0:
+            logger.info(f"Seeding {len(SAMPLE_FINDINGS)} structured findings...")
+            for f_data in SAMPLE_FINDINGS:
+                finding = AssetFinding(
+                    id=f_data["id"],
+                    asset_id=f_data["asset_id"],
+                    title=f_data["title"],
+                    plain_explanation=f_data["plain_explanation"],
+                    technical_explanation=f_data["technical_explanation"],
+                    severity=f_data.get("severity", "Moderate"),
+                    affected_component=f_data["affected_component"],
+                    supporting_evidence=f_data.get("supporting_evidence"),
+                    date_identified=f_data["date_identified"],
+                    verification_status=f_data.get("verification_status", "Verified by Field Audit"),
+                    recommended_action=f_data["recommended_action"],
+                    resolution_status=f_data.get("resolution_status", "Open"),
+                )
+                db.add(finding)
+            db.commit()
+            logger.info("Seeded structured findings.")
+
+        logger.info(
+            f"Database ready: {db.query(Asset).count()} assets, "
+            f"{db.query(Inspection).count()} inspections, "
+            f"{db.query(AssetMedia).count()} media, "
+            f"{db.query(EvidenceSource).count()} sources, "
+            f"{db.query(AssetFinding).count()} findings."
+        )
         return db.query(Asset).count()
     except Exception as e:
         db.rollback()

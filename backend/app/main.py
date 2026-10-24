@@ -1,16 +1,28 @@
 from datetime import datetime, timezone
 from contextlib import asynccontextmanager
-from typing import Optional, List
+from typing import Optional, List, Dict, Any
+from pathlib import Path
 import logging
 import json
-from fastapi import FastAPI, Depends, HTTPException, Query, status
+import shutil
+from fastapi import FastAPI, Depends, HTTPException, Query, status, UploadFile, File, Form
+from fastapi.responses import FileResponse
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 from sqlalchemy import or_
 
 from app.config import APP_NAME, ENV, CORS_ORIGINS
 from app.database import get_db, Base, engine
-from app.models import Asset, Inspection, User, parse_flagged_reasons, serialize_flagged_reasons
+from app.models import (
+    Asset,
+    Inspection,
+    User,
+    AssetMedia,
+    EvidenceSource,
+    AssetFinding,
+    parse_flagged_reasons,
+    serialize_flagged_reasons,
+)
 import re
 import uuid
 from app.schemas import (
@@ -32,6 +44,16 @@ from app.schemas import (
     UserRegisterRequest,
     UserResponse,
     TokenResponse,
+    AssetMediaResponse,
+    EvidenceSourceResponse,
+    AssetFindingResponse,
+    AssetFindingCreateRequest,
+    GlobalSearchResponse,
+    GlobalSearchResultItem,
+    AssetIntelligenceResponse,
+    AssetCompleteness,
+    AssetReportResponse,
+    AssetReportSection,
 )
 from app.security import verify_password, create_access_token, hash_password
 from app.dependencies import get_current_user, require_admin
@@ -40,6 +62,9 @@ from app.copilot_service import query_copilot_evidence, query_copilot_evidence_a
 from app.heartbeat_engine import calculate_digital_heartbeat, determine_asset_status
 from app.database import ensure_schema_compatibility, engine
 from app.seed import init_db
+
+MEDIA_DIR = Path(__file__).resolve().parent.parent / "data" / "media"
+MEDIA_DIR.mkdir(parents=True, exist_ok=True)
 
 logging.basicConfig(level=logging.INFO)
 from app.copilot_service import install_sensitive_param_filters
@@ -863,6 +888,559 @@ def get_asset_timeline(asset_id: str, db: Session = Depends(get_db)):
     # Sort descending by date
     timeline.sort(key=lambda x: x.date, reverse=True)
     return timeline
+
+
+# ==============================================================================
+# GLOBAL SEARCH & DISCOVERY ENDPOINT
+# ==============================================================================
+
+@app.get(
+    "/api/search",
+    response_model=GlobalSearchResponse,
+    tags=["Search"],
+    summary="Global infrastructure search across assets, findings, and documents",
+)
+def global_search(q: str = Query(..., min_length=1, description="Search term"), db: Session = Depends(get_db)):
+    clean_q = q.strip().lower()
+    search_filter = f"%{clean_q}%"
+
+    # 1. Assets
+    matched_assets = db.query(Asset).filter(
+        or_(
+            Asset.name.ilike(search_filter),
+            Asset.id.ilike(search_filter),
+            Asset.category.ilike(search_filter),
+            Asset.district.ilike(search_filter),
+            Asset.state.ilike(search_filter),
+            Asset.description.ilike(search_filter),
+        )
+    ).limit(10).all()
+
+    asset_results = [
+        GlobalSearchResultItem(
+            id=a.id,
+            type="asset",
+            title=a.name,
+            subtitle=f"{a.category} · {a.district}, {a.state}",
+            category=a.category,
+            risk_level=a.risk_level,
+            asset_id=a.id,
+            url=f"/assets/{a.id}",
+            snippet=a.description[:120] if a.description else None,
+        )
+        for a in matched_assets
+    ]
+
+    # 2. Findings
+    matched_findings = db.query(AssetFinding).filter(
+        or_(
+            AssetFinding.title.ilike(search_filter),
+            AssetFinding.affected_component.ilike(search_filter),
+            AssetFinding.plain_explanation.ilike(search_filter),
+            AssetFinding.technical_explanation.ilike(search_filter),
+        )
+    ).limit(10).all()
+
+    finding_results = [
+        GlobalSearchResultItem(
+            id=f.id,
+            type="finding",
+            title=f.title,
+            subtitle=f"{f.affected_component} · Severity: {f.severity}",
+            risk_level=f.severity,
+            asset_id=f.asset_id,
+            url=f"/assets/{f.asset_id}",
+            snippet=f.plain_explanation[:120] if f.plain_explanation else None,
+        )
+        for f in matched_findings
+    ]
+
+    # 3. Documents
+    doc_results = []
+    evidence_hits = evidence_store.search_evidence(query=clean_q, top_k=5, min_score=15.0)
+    for hit in evidence_hits:
+        doc_results.append(
+            GlobalSearchResultItem(
+                id=hit.chunk_id,
+                type="document",
+                title=hit.document_name,
+                subtitle=f"{hit.source_agency} · {hit.file_type}",
+                asset_id=hit.asset_id,
+                url=f"/documents/{hit.source_file or hit.document_name}",
+                snippet=hit.excerpt[:140] if hit.excerpt else None,
+            )
+        )
+
+    total = len(asset_results) + len(finding_results) + len(doc_results)
+    return GlobalSearchResponse(
+        query=q,
+        total_matches=total,
+        assets=asset_results,
+        findings=finding_results,
+        documents=doc_results,
+    )
+
+
+# ==============================================================================
+# VISUAL MEDIA & EVIDENCE FILE SERVING
+# ==============================================================================
+
+@app.get(
+    "/api/media/{file_name}",
+    tags=["Media"],
+    summary="Safely serve visual infrastructure media files",
+)
+def get_media_file(file_name: str):
+    if not file_name or ".." in file_name or "/" in file_name or "\\" in file_name:
+        raise HTTPException(status_code=400, detail="Invalid media file name.")
+
+    target = (MEDIA_DIR / file_name).resolve()
+    if not str(target).startswith(str(MEDIA_DIR.resolve())) or not target.exists() or not target.is_file():
+        raise HTTPException(status_code=404, detail="Media file not found.")
+
+    ext = target.suffix.lower()
+    media_types = {
+        ".svg": "image/svg+xml",
+        ".png": "image/png",
+        ".jpg": "image/jpeg",
+        ".jpeg": "image/jpeg",
+        ".webp": "image/webp",
+    }
+    return FileResponse(path=str(target), media_type=media_types.get(ext, "application/octet-stream"))
+
+
+@app.get(
+    "/api/assets/{asset_id}/images",
+    response_model=List[AssetMediaResponse],
+    tags=["Media"],
+    summary="List visual media records for an asset",
+)
+def get_asset_media(asset_id: str, category: Optional[str] = None, db: Session = Depends(get_db)):
+    asset = db.query(Asset).filter(Asset.id == asset_id).first()
+    if not asset:
+        raise HTTPException(status_code=404, detail=f"Asset '{asset_id}' not found.")
+
+    query = db.query(AssetMedia).filter(AssetMedia.asset_id == asset_id)
+    if category:
+        query = query.filter(AssetMedia.category == category)
+    items = query.order_by(AssetMedia.created_at.desc()).all()
+    return [
+        AssetMediaResponse(
+            id=m.id,
+            asset_id=m.asset_id,
+            inspection_id=m.inspection_id,
+            file_name=m.file_name,
+            file_path=m.file_path,
+            url=f"/api/media/{m.file_name}",
+            caption=m.caption,
+            category=m.category,
+            uploader_name=m.uploader_name,
+            captured_at=m.captured_at,
+            verification_status=m.verification_status,
+            created_at=m.created_at.isoformat() if m.created_at else None,
+        )
+        for m in items
+    ]
+
+
+@app.post(
+    "/api/assets/{asset_id}/images",
+    response_model=AssetMediaResponse,
+    status_code=status.HTTP_201_CREATED,
+    tags=["Media"],
+    summary="Upload new visual infrastructure media with validation",
+)
+async def upload_asset_media(
+    asset_id: str,
+    file: UploadFile = File(...),
+    caption: str = Form(...),
+    category: str = Form("General"),
+    captured_at: Optional[str] = Form(None),
+    inspection_id: Optional[str] = Form(None),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    asset = db.query(Asset).filter(Asset.id == asset_id).first()
+    if not asset:
+        raise HTTPException(status_code=404, detail=f"Asset '{asset_id}' not found.")
+
+    allowed_exts = {".png", ".jpg", ".jpeg", ".webp", ".svg"}
+    original_ext = Path(file.filename or "").suffix.lower()
+    if original_ext not in allowed_exts:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Unsupported file format '{original_ext}'. Allowed formats: {', '.join(allowed_exts)}",
+        )
+
+    content = await file.read()
+    if len(content) > 10 * 1024 * 1024:
+        raise HTTPException(status_code=400, detail="File size exceeds maximum permitted 10MB limit.")
+
+    safe_id = f"MED-{uuid.uuid4().hex[:8].upper()}"
+    safe_filename = f"{asset_id.lower()}_{safe_id.lower()}{original_ext}"
+    target_path = MEDIA_DIR / safe_filename
+    target_path.write_bytes(content)
+
+    media_record = AssetMedia(
+        id=safe_id,
+        asset_id=asset_id,
+        inspection_id=inspection_id,
+        file_name=safe_filename,
+        file_path=safe_filename,
+        caption=caption.strip(),
+        category=category.strip(),
+        uploader_name=current_user.full_name or current_user.username,
+        captured_at=captured_at or datetime.now(timezone.utc).strftime("%Y-%m-%d"),
+        verification_status="Verified" if current_user.role == "admin" else "Field Submitted",
+    )
+    db.add(media_record)
+    db.commit()
+    db.refresh(media_record)
+
+    return AssetMediaResponse(
+        id=media_record.id,
+        asset_id=media_record.asset_id,
+        inspection_id=media_record.inspection_id,
+        file_name=media_record.file_name,
+        file_path=media_record.file_path,
+        url=f"/api/media/{media_record.file_name}",
+        caption=media_record.caption,
+        category=media_record.category,
+        uploader_name=media_record.uploader_name,
+        captured_at=media_record.captured_at,
+        verification_status=media_record.verification_status,
+        created_at=media_record.created_at.isoformat() if media_record.created_at else None,
+    )
+
+
+# ==============================================================================
+# EVIDENCE CATALOG & PROVENANCE SOURCES
+# ==============================================================================
+
+@app.get(
+    "/api/evidence",
+    tags=["Evidence"],
+    summary="Catalog of indexed engineering evidence documents",
+)
+def list_evidence_catalog():
+    docs: Dict[str, Any] = {}
+    for chunk in evidence_store.chunks:
+        doc_key = chunk.source_file or chunk.document_name
+        if doc_key not in docs:
+            docs[doc_key] = {
+                "document_name": chunk.document_name,
+                "filename": chunk.source_file or doc_key,
+                "file_type": chunk.file_type,
+                "source_agency": chunk.source_agency,
+                "associated_asset_id": chunk.asset_id,
+                "timestamp": chunk.timestamp,
+                "total_chunks": 0,
+                "sample_excerpt": chunk.excerpt[:200],
+            }
+        docs[doc_key]["total_chunks"] += 1
+        if chunk.asset_id and not docs[doc_key]["associated_asset_id"]:
+            docs[doc_key]["associated_asset_id"] = chunk.asset_id
+
+    return {
+        "total_documents": len(docs),
+        "total_indexed_chunks": len(evidence_store.chunks),
+        "documents": list(docs.values()),
+    }
+
+
+@app.get(
+    "/api/assets/{asset_id}/sources",
+    response_model=List[EvidenceSourceResponse],
+    tags=["Evidence"],
+    summary="List evidence sources and citations for an asset",
+)
+def get_asset_sources(asset_id: str, db: Session = Depends(get_db)):
+    asset = db.query(Asset).filter(Asset.id == asset_id).first()
+    if not asset:
+        raise HTTPException(status_code=404, detail=f"Asset '{asset_id}' not found.")
+    sources = db.query(EvidenceSource).filter(EvidenceSource.asset_id == asset_id).all()
+    return [
+        EvidenceSourceResponse(
+            id=s.id,
+            asset_id=s.asset_id,
+            title=s.title,
+            source_type=s.source_type,
+            provider=s.provider,
+            document_name=s.document_name,
+            page_or_paragraph=s.page_or_paragraph,
+            excerpt=s.excerpt,
+            verification_status=s.verification_status,
+            publication_date=s.publication_date,
+            created_at=s.created_at.isoformat() if s.created_at else None,
+        )
+        for s in sources
+    ]
+
+
+# ==============================================================================
+# STRUCTURED FINDINGS & RECOMMENDATIONS
+# ==============================================================================
+
+@app.get(
+    "/api/assets/{asset_id}/findings",
+    response_model=List[AssetFindingResponse],
+    tags=["Findings"],
+    summary="List structured engineering findings for an asset",
+)
+def get_asset_findings(asset_id: str, db: Session = Depends(get_db)):
+    asset = db.query(Asset).filter(Asset.id == asset_id).first()
+    if not asset:
+        raise HTTPException(status_code=404, detail=f"Asset '{asset_id}' not found.")
+    findings = (
+        db.query(AssetFinding)
+        .filter(AssetFinding.asset_id == asset_id)
+        .order_by(AssetFinding.created_at.desc())
+        .all()
+    )
+    return [
+        AssetFindingResponse(
+            id=f.id,
+            asset_id=f.asset_id,
+            title=f.title,
+            plain_explanation=f.plain_explanation,
+            technical_explanation=f.technical_explanation,
+            severity=f.severity,
+            affected_component=f.affected_component,
+            supporting_evidence=f.supporting_evidence,
+            date_identified=f.date_identified,
+            verification_status=f.verification_status,
+            recommended_action=f.recommended_action,
+            resolution_status=f.resolution_status,
+            created_at=f.created_at.isoformat() if f.created_at else None,
+        )
+        for f in findings
+    ]
+
+
+@app.post(
+    "/api/assets/{asset_id}/findings",
+    response_model=AssetFindingResponse,
+    status_code=status.HTTP_201_CREATED,
+    tags=["Findings"],
+    summary="Create a structured engineering finding (Admin required)",
+)
+def create_asset_finding(
+    asset_id: str,
+    payload: AssetFindingCreateRequest,
+    db: Session = Depends(get_db),
+    admin_user: User = Depends(require_admin),
+):
+    asset = db.query(Asset).filter(Asset.id == asset_id).first()
+    if not asset:
+        raise HTTPException(status_code=404, detail=f"Asset '{asset_id}' not found.")
+
+    finding_id = f"FND-{uuid.uuid4().hex[:8].upper()}"
+    finding = AssetFinding(
+        id=finding_id,
+        asset_id=asset_id,
+        title=payload.title.strip(),
+        plain_explanation=payload.plain_explanation.strip(),
+        technical_explanation=payload.technical_explanation.strip(),
+        severity=payload.severity,
+        affected_component=payload.affected_component.strip(),
+        supporting_evidence=payload.supporting_evidence,
+        date_identified=payload.date_identified,
+        verification_status=payload.verification_status,
+        recommended_action=payload.recommended_action.strip(),
+        resolution_status=payload.resolution_status,
+    )
+    db.add(finding)
+    db.commit()
+    db.refresh(finding)
+
+    return AssetFindingResponse(
+        id=finding.id,
+        asset_id=finding.asset_id,
+        title=finding.title,
+        plain_explanation=finding.plain_explanation,
+        technical_explanation=finding.technical_explanation,
+        severity=finding.severity,
+        affected_component=finding.affected_component,
+        supporting_evidence=finding.supporting_evidence,
+        date_identified=finding.date_identified,
+        verification_status=finding.verification_status,
+        recommended_action=finding.recommended_action,
+        resolution_status=finding.resolution_status,
+        created_at=finding.created_at.isoformat() if finding.created_at else None,
+    )
+
+
+# ==============================================================================
+# COMPLETE INFRASTRUCTURE INTELLIGENCE PROFILE & REPORTS
+# ==============================================================================
+
+@app.get(
+    "/api/assets/{asset_id}/intelligence",
+    response_model=AssetIntelligenceResponse,
+    tags=["Intelligence"],
+    summary="Complete unified infrastructure intelligence profile",
+)
+def get_asset_intelligence(asset_id: str, db: Session = Depends(get_db)):
+    asset = db.query(Asset).filter(Asset.id == asset_id).first()
+    if not asset:
+        raise HTTPException(status_code=404, detail=f"Asset '{asset_id}' not found.")
+
+    findings_db = db.query(AssetFinding).filter(AssetFinding.asset_id == asset_id).all()
+    sources_db = db.query(EvidenceSource).filter(EvidenceSource.asset_id == asset_id).all()
+    media_db = db.query(AssetMedia).filter(AssetMedia.asset_id == asset_id).all()
+    inspections_db = (
+        db.query(Inspection)
+        .filter(Inspection.asset_id == asset_id)
+        .order_by(Inspection.inspection_date.desc())
+        .all()
+    )
+
+    heartbeat_dict = calculate_digital_heartbeat(asset, inspections_db)
+    heartbeat_resp = HeartbeatResponse(**heartbeat_dict)
+
+    timeline_events = get_asset_timeline(asset_id, db)
+
+    verified_fields = ["id", "name", "category", "district", "state", "latitude", "longitude"]
+    missing_fields = []
+    if asset.construction_year:
+        verified_fields.append("construction_year")
+    else:
+        missing_fields.append("construction_year")
+    if asset.last_inspection_date:
+        verified_fields.append("last_inspection_date")
+    else:
+        missing_fields.append("last_inspection_date")
+    if asset.ownership_authority:
+        verified_fields.append("ownership_authority")
+    else:
+        missing_fields.append("ownership_authority")
+
+    score = 40
+    if len(inspections_db) > 0:
+        score += 20
+    if len(sources_db) > 0:
+        score += 15
+    if len(media_db) > 0:
+        score += 15
+    if len(findings_db) > 0:
+        score += 10
+    completeness_percentage = min(100, score)
+
+    completeness = AssetCompleteness(
+        percentage=completeness_percentage,
+        verified_fields=verified_fields,
+        missing_fields=missing_fields,
+        has_inspections=len(inspections_db) > 0,
+        has_media=len(media_db) > 0,
+        has_sources=len(sources_db) > 0,
+        has_findings=len(findings_db) > 0,
+    )
+
+    return AssetIntelligenceResponse(
+        asset=AssetResponse(**asset.to_dict()),
+        completeness=completeness,
+        heartbeat=heartbeat_resp,
+        findings=[AssetFindingResponse(**f.to_dict()) for f in findings_db],
+        sources=[EvidenceSourceResponse(**s.to_dict()) for s in sources_db],
+        media=[AssetMediaResponse(**m.to_dict()) for m in media_db],
+        timeline=timeline_events,
+        inspections=[InspectionResponse(**i.to_dict()) for i in inspections_db],
+    )
+
+
+@app.get(
+    "/api/assets/{asset_id}/report",
+    response_model=AssetReportResponse,
+    tags=["Reports"],
+    summary="Generate comprehensive audit-ready infrastructure intelligence report",
+)
+def get_asset_report(asset_id: str, db: Session = Depends(get_db)):
+    intel = get_asset_intelligence(asset_id, db)
+    asset = intel.asset
+    hb = intel.heartbeat
+
+    sections = [
+        AssetReportSection(
+            section_id="sec-1",
+            title="1. Infrastructure Identity & Executive Summary",
+            summary=f"Official profile for {asset.name} ({asset.id}) under the jurisdiction of {asset.ownership_authority}.",
+            details=[
+                f"Classification: {asset.category} in {asset.district}, {asset.state}",
+                f"Coordinates: {asset.latitude:.4f} N, {asset.longitude:.4f} E",
+                f"Commissioning: Year {asset.construction_year or 'Unrecorded'}",
+                f"Current Operational Status: {asset.status}",
+                f"Data Completeness Score: {intel.completeness.percentage}%",
+            ],
+            evidence_citations=[s.title for s in intel.sources[:2]],
+        ),
+        AssetReportSection(
+            section_id="sec-2",
+            title="2. Digital Heartbeat & Condition Telemetry",
+            summary=f"Dynamic risk index calculated at {hb.risk_score:.1f} ({hb.risk_tier}), with an overall Health Index of {hb.health_index:.1f}/100.",
+            details=[
+                f"Structural Deterioration Factor: {next((f.score for f in hb.contributing_factors if f.id == 'structural'), 0):.1f}",
+                f"Environmental Vulnerability Factor: {next((f.score for f in hb.contributing_factors if f.id == 'environmental'), 0):.1f}",
+                f"Compliance & Recency Factor: {next((f.score for f in hb.contributing_factors if f.id == 'compliance'), 0):.1f}",
+                f"Days Since Last Audit: {hb.days_since_inspection} days",
+                f"Confidence Score: {hb.data_confidence_score * 100:.0f}%",
+            ],
+            evidence_citations=["Digital Heartbeat Deterministic 4-Factor Engine"],
+        ),
+        AssetReportSection(
+            section_id="sec-3",
+            title="3. Engineering Findings & Observed Defects",
+            summary=f"Identified {len(intel.findings)} structured findings requiring civil engineering attention.",
+            details=[
+                f"[{f.severity}] {f.title} — Component: {f.affected_component}. Status: {f.resolution_status}"
+                for f in intel.findings
+            ] if intel.findings else ["No acute critical findings registered in active database."],
+            evidence_citations=[f.supporting_evidence for f in intel.findings if f.supporting_evidence],
+        ),
+        AssetReportSection(
+            section_id="sec-4",
+            title="4. Inspection & Verification Lifecycle",
+            summary=f"Audit history contains {len(intel.inspections)} field evaluations.",
+            details=[
+                f"{i.inspection_date} [{i.status}]: {i.inspection_type} by {i.responsible_user} — Outcome: {i.verification_outcome or 'Pending'}"
+                for i in intel.inspections
+            ] if intel.inspections else ["No historical inspections on record."],
+            evidence_citations=[i.evidence_references for i in intel.inspections if i.evidence_references],
+        ),
+        AssetReportSection(
+            section_id="sec-5",
+            title="5. Data Gaps & Recommended Investigations",
+            summary="Identified telemetry and audit gaps requiring field investigation.",
+            details=[
+                f"Recommended Action: {inv.title} ({inv.priority} Priority) — {inv.detail}"
+                for inv in hb.suggested_investigations
+            ] + [f"Missing Parameter: {m}" for m in intel.completeness.missing_fields],
+            evidence_citations=["AAYAM Data Quality & Completeness Audit"],
+        ),
+    ]
+
+    crit_count = sum(1 for f in intel.findings if f.severity in ["Critical", "High"])
+    open_count = sum(1 for f in intel.findings if f.resolution_status != "Resolved & Certified")
+    verified_count = sum(1 for i in intel.inspections if i.status == "Verified")
+
+    return AssetReportResponse(
+        report_id=f"REP-{asset.id}-{datetime.now(timezone.utc).strftime('%Y%m%d%H%M')}",
+        generated_at=datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC"),
+        generated_by="AAYAM Platform Intelligence Engine v0.1",
+        asset_id=asset.id,
+        asset_name=asset.name,
+        category=asset.category,
+        district=asset.district,
+        state=asset.state,
+        ownership_authority=asset.ownership_authority,
+        overall_risk_score=hb.risk_score,
+        risk_level=hb.risk_tier,
+        health_index=hb.health_index,
+        sections=sections,
+        critical_findings_count=crit_count,
+        open_actions_count=open_count,
+        verified_interventions_count=verified_count,
+    )
+
 
 
 

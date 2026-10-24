@@ -7,7 +7,12 @@ import DashboardOverview from './pages/DashboardOverview';
 import AssetRegistry from './pages/AssetRegistry';
 import MapViewPlaceholder from './pages/MapViewPlaceholder';
 import DigitalHeartbeatPlaceholder from './pages/DigitalHeartbeatPlaceholder';
+import InspectionsInterventionsPage from './pages/InspectionsInterventionsPage';
+import EvidenceLibraryPage from './pages/EvidenceLibraryPage';
 import CopilotPlaceholder from './pages/CopilotPlaceholder';
+import ReportsHistoryPage from './pages/ReportsHistoryPage';
+import AssetIntelligenceProfile from './components/AssetIntelligenceProfile';
+import EvidenceViewerModal from './components/EvidenceViewerModal';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { LanguageProvider } from './context/LanguageContext';
 import { fetchHealth, fetchAssets, fetchAssetStats } from './services/api';
@@ -30,6 +35,23 @@ export function DashboardView({ isDemo = false, onExitDemo }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [profileAssetId, setProfileAssetId] = useState(null);
+  const [isProfileOpen, setIsProfileOpen] = useState(false);
+  const [viewerDocName, setViewerDocName] = useState(null);
+  const [isViewerOpen, setIsViewerOpen] = useState(false);
+
+  const handleOpenProfile = (assetOrId) => {
+    const id = typeof assetOrId === 'object' && assetOrId !== null ? assetOrId.id : assetOrId;
+    setProfileAssetId(id);
+    setIsProfileOpen(true);
+    const matched = assets.find((a) => a.id === id);
+    if (matched) setSelectedAsset(matched);
+  };
+
+  const handleOpenDocument = (docName) => {
+    setViewerDocName(docName);
+    setIsViewerOpen(true);
+  };
 
   // Close mobile drawer on Escape key press
   useEffect(() => {
@@ -127,24 +149,36 @@ export function DashboardView({ isDemo = false, onExitDemo }) {
   // Route titles and subtitles for header
   const routeMeta = {
     overview: {
-      title: 'Infrastructure Operations Dashboard',
+      title: 'Intelligence Overview',
       subtitle: 'Real-time telemetry overview, condition health index, and priority investigations',
+    },
+    map: {
+      title: 'Explore Infrastructure',
+      subtitle: 'Spatial distribution of monitored assets with risk-coded location pins and GIS telemetry',
     },
     registry: {
       title: 'Public Infrastructure Asset Registry',
-      subtitle: 'Searchable inventory with technical specifications, district mapping, and audit records',
-    },
-    map: {
-      title: 'Geospatial Asset Map',
-      subtitle: 'Spatial distribution of monitored assets with risk-coded location pins',
+      subtitle: 'Searchable master inventory with technical specifications, district mapping, and audit records',
     },
     heartbeat: {
       title: 'Digital Heartbeat Diagnostics',
       subtitle: 'Explainable risk breakdown, degradation indicators, and engineering audit history',
     },
+    inspections: {
+      title: 'Inspections & Interventions',
+      subtitle: 'Field evaluations, civil maintenance tracking, and closed-loop engineering verification',
+    },
+    evidence: {
+      title: 'Evidence & Grounded Research Library',
+      subtitle: 'Verified engineering documents, sonar bathymetry surveys, and diagnostic audits',
+    },
     copilot: {
-      title: 'AI Decision Copilot',
-      subtitle: 'Grounding conversational queries in verified infrastructure records (Roadmap Preview)',
+      title: 'AI Intelligence Copilot',
+      subtitle: 'Grounding conversational queries in verified infrastructure records and citations',
+    },
+    reports: {
+      title: 'Reports & History',
+      subtitle: 'Exportable, evidence-grounded reports with verified telemetry and defect citations',
     },
   };
 
@@ -216,6 +250,8 @@ export function DashboardView({ isDemo = false, onExitDemo }) {
             onExitDemo={onExitDemo}
             onToggleMobileMenu={() => setIsMobileMenuOpen((prev) => !prev)}
             isMobileMenuOpen={isMobileMenuOpen}
+            onSelectAsset={(id) => handleOpenProfile(id)}
+            onOpenDocument={handleOpenDocument}
           />
 
         {/* Scrollable Viewport */}
@@ -256,7 +292,17 @@ export function DashboardView({ isDemo = false, onExitDemo }) {
               loading={loading}
               error={error}
               onNavigate={(route) => setCurrentRoute(route)}
-              onSelectAsset={(asset) => setSelectedAsset(asset)}
+              onSelectAsset={(asset) => handleOpenProfile(asset)}
+              isDemo={isDemo}
+            />
+          )}
+
+          {currentRoute === 'map' && (
+            <MapViewPlaceholder
+              assets={assets}
+              selectedAsset={selectedAsset}
+              onSelectAsset={(asset) => handleOpenProfile(asset)}
+              onNavigate={(route) => setCurrentRoute(route)}
               isDemo={isDemo}
             />
           )}
@@ -268,20 +314,10 @@ export function DashboardView({ isDemo = false, onExitDemo }) {
               loading={loading}
               error={error}
               selectedAsset={selectedAsset}
-              onSelectAsset={(asset) => setSelectedAsset(asset)}
+              onSelectAsset={(asset) => handleOpenProfile(asset)}
               onNavigate={(route) => setCurrentRoute(route)}
               onRefresh={loadData}
               isAdmin={isAdmin}
-              isDemo={isDemo}
-            />
-          )}
-
-          {currentRoute === 'map' && (
-            <MapViewPlaceholder
-              assets={assets}
-              selectedAsset={selectedAsset}
-              onSelectAsset={(asset) => setSelectedAsset(asset)}
-              onNavigate={(route) => setCurrentRoute(route)}
               isDemo={isDemo}
             />
           )}
@@ -290,10 +326,31 @@ export function DashboardView({ isDemo = false, onExitDemo }) {
             <DigitalHeartbeatPlaceholder
               assets={assets}
               selectedAsset={selectedAsset}
-              onSelectAsset={(asset) => setSelectedAsset(asset)}
+              onSelectAsset={(asset) => handleOpenProfile(asset)}
               onNavigate={(route) => setCurrentRoute(route)}
               onRefresh={loadData}
               isAdmin={isAdmin}
+              isDemo={isDemo}
+            />
+          )}
+
+          {currentRoute === 'inspections' && (
+            <InspectionsInterventionsPage
+              assets={assets}
+              selectedAsset={selectedAsset}
+              onSelectAsset={(asset) => setSelectedAsset(asset)}
+              onOpenProfile={(id) => handleOpenProfile(id)}
+              onRefresh={loadData}
+              isAdmin={isAdmin}
+              isDemo={isDemo}
+            />
+          )}
+
+          {currentRoute === 'evidence' && (
+            <EvidenceLibraryPage
+              assets={assets}
+              onOpenProfile={(id) => handleOpenProfile(id)}
+              onNavigate={(route) => setCurrentRoute(route)}
               isDemo={isDemo}
             />
           )}
@@ -302,11 +359,67 @@ export function DashboardView({ isDemo = false, onExitDemo }) {
             <CopilotPlaceholder
               assets={assets}
               onNavigate={(route) => setCurrentRoute(route)}
+              onOpenProfile={(id) => handleOpenProfile(id)}
+              isDemo={isDemo}
+            />
+          )}
+
+          {currentRoute === 'reports' && (
+            <ReportsHistoryPage
+              assets={assets}
+              selectedAsset={selectedAsset}
+              onSelectAsset={(asset) => setSelectedAsset(asset)}
+              onOpenProfile={(id) => handleOpenProfile(id)}
+              onOpenDocument={handleOpenDocument}
               isDemo={isDemo}
             />
           )}
         </main>
       </div>
+
+      {/* Complete Infrastructure Intelligence Profile Modal */}
+      {isProfileOpen && profileAssetId && (
+        <AssetIntelligenceProfile
+          assetId={profileAssetId}
+          initialAsset={assets.find((a) => a.id === profileAssetId) || selectedAsset}
+          isOpen={isProfileOpen}
+          onClose={() => setIsProfileOpen(false)}
+          onOpenDocument={handleOpenDocument}
+          onNavigate={(route) => {
+            setCurrentRoute(route);
+            setIsProfileOpen(false);
+          }}
+          isDemo={isDemo}
+          isAdmin={isAdmin}
+        />
+      )}
+
+      {/* Global Grounded Evidence Document Viewer */}
+      {isViewerOpen && viewerDocName && (
+        <EvidenceViewerModal
+          isOpen={isViewerOpen}
+          onClose={() => setIsViewerOpen(false)}
+          selectedCitationLabel={viewerDocName}
+          citations={[viewerDocName]}
+          evidence={[
+            {
+              citation_label: viewerDocName,
+              source: viewerDocName,
+              document_name: viewerDocName,
+              filename: viewerDocName,
+              section_title: 'Full Engineering Document Audit',
+              page_number: 1,
+              excerpt: 'Inspecting primary engineering document.',
+              relevance_score: 100,
+            },
+          ]}
+          onNavigate={(route) => {
+            setCurrentRoute(route);
+            setIsViewerOpen(false);
+          }}
+          isDemo={isDemo}
+        />
+      )}
     </div>
   </div>
   );

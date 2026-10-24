@@ -1,0 +1,38 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 450" width="800" height="450">
+  <defs>
+    <linearGradient id="headerGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#0F172A" />
+      <stop offset="100%" stop-color="#1E293B" />
+    </linearGradient>
+  </defs>
+  
+  <!-- Background Canvas -->
+  <rect width="800" height="450" fill="#0F172A"/>
+  <rect x="20" y="20" width="760" height="410" fill="#0B132B" stroke="#1E293B" stroke-width="2" rx="8"/>
+
+  <!-- Top Banner / Badge -->
+  <rect x="35" y="35" width="730" height="50" fill="#1E293B" rx="6"/>
+  <rect x="45" y="45" width="12" height="30" fill="#D97706" rx="2"/>
+  <text x="70" y="66" fill="#F8FAFC" font-size="16" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-weight="bold">Expansion Joint EJ-4 Degradation Measurement</text>
+  <rect x="610" y="46" width="145" height="26" fill="#D97706" opacity="0.2" rx="4"/>
+  <text x="682" y="63" fill="#D97706" font-size="10" font-family="sans-serif" font-weight="bold" text-anchor="middle">STRUCTURAL DEFECT SURVEY</text>
+
+  <!-- Central Technical Graphic -->
+  <g transform="translate(0, 10)">
+    
+            <rect x="80" y="120" width="280" height="180" fill="#475569" rx="4"/>
+            <rect x="440" y="120" width="280" height="180" fill="#475569" rx="4"/>
+            <line x1="360" y1="140" x2="440" y2="140" stroke="#F59E0B" stroke-width="3" marker-start="url(#dot)" marker-end="url(#dot)"/>
+            <text x="400" y="130" fill="#F59E0B" font-size="14" font-family="sans-serif" font-weight="bold" text-anchor="middle">48.2 mm</text>
+            <path d="M 360 160 L 440 280 L 440 300 L 360 180 Z" fill="#DC2626" opacity="0.4"/>
+            <text x="400" y="235" fill="#EF4444" font-size="12" font-family="sans-serif" font-weight="bold" text-anchor="middle">FAULT ZONE</text>
+        
+  </g>
+
+  <!-- Bottom Details Bar -->
+  <rect x="35" y="360" width="730" height="60" fill="#1E293B" rx="6"/>
+  <text x="50" y="382" fill="#94A3B8" font-size="11" font-family="monospace">Asset: Mandovi River Estuary Bridge (ASSET-BRG-001)</text>
+  <text x="50" y="402" fill="#94A3B8" font-size="11" font-family="monospace">Measured Gap: 48.2mm (Permissible Max: 25.0mm)</text>
+  <text x="420" y="382" fill="#CBD5E1" font-size="11" font-family="monospace">Elastomeric Seal: Complete Delamination & Debris Pack</text>
+  <text x="420" y="402" fill="#D97706" font-size="11" font-family="monospace" font-weight="bold">Recommendation: Emergency Modular Joint Replacement</text>
+</svg>

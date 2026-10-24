@@ -15,9 +15,22 @@ if str(backend_dir) not in sys.path:
     sys.path.insert(0, str(backend_dir))
 
 from app.database import Base, get_db
-from app.models import Asset, Inspection, User, serialize_flagged_reasons
+from app.models import (
+    Asset,
+    Inspection,
+    User,
+    AssetMedia,
+    EvidenceSource,
+    AssetFinding,
+    serialize_flagged_reasons,
+)
 from app.security import hash_password, create_access_token
-from app.seed_data import SAMPLE_ASSETS
+from app.seed_data import (
+    SAMPLE_ASSETS,
+    SAMPLE_MEDIA,
+    SAMPLE_SOURCES,
+    SAMPLE_FINDINGS,
+)
 from app.seed import SAMPLE_INSPECTIONS
 from app.main import app
 
@@ -101,6 +114,18 @@ def isolated_db(test_engine, TestingSessionLocal) -> Generator[Session, None, No
             is_active=True,
         )
         db.add(canonical_user)
+
+        # Seed media
+        for m_dict in SAMPLE_MEDIA:
+            db.add(AssetMedia(**m_dict))
+
+        # Seed sources
+        for s_dict in SAMPLE_SOURCES:
+            db.add(EvidenceSource(**s_dict))
+
+        # Seed findings
+        for f_dict in SAMPLE_FINDINGS:
+            db.add(AssetFinding(**f_dict))
 
         db.commit()
     except Exception:

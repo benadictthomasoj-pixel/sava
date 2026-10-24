@@ -40,10 +40,15 @@ def ensure_schema_compatibility(target_engine=None):
     from sqlalchemy import text
     eng = target_engine or engine
     try:
-        # Non-destructively creates any newly defined tables (such as 'users')
+        # Non-destructively creates any newly defined tables (users, asset_media, evidence_sources, asset_findings)
         Base.metadata.create_all(bind=eng)
         with eng.connect() as conn:
             tables = [r[0] for r in conn.execute(text("SELECT name FROM sqlite_master WHERE type='table'")).fetchall()]
+            if "assets" in tables:
+                asset_cols = [r[1] for r in conn.execute(text("PRAGMA table_info(assets)")).fetchall()]
+                if "ownership_authority" not in asset_cols:
+                    conn.execute(text("ALTER TABLE assets ADD COLUMN ownership_authority VARCHAR(200) DEFAULT 'State Public Works Department (PWD)'"))
+                    conn.commit()
             if "inspections" in tables:
                 cols = [r[1] for r in conn.execute(text("PRAGMA table_info(inspections)")).fetchall()]
                 if "verification_outcome" not in cols:

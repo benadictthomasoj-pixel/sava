@@ -21,6 +21,9 @@ import {
   DEMO_COPILOT_RESPONSES,
   DEMO_SOURCE_DOCUMENTS,
   DEMO_DISCLAIMER,
+  DEMO_MEDIA,
+  DEMO_SOURCES,
+  DEMO_FINDINGS,
 } from './demoData';
 
 /**
@@ -448,3 +451,293 @@ export async function updateDemoInspection() {
 export async function verifyDemoInspectionOutcome() {
   throw new DemoIsolationError('verify inspection outcome');
 }
+
+// ==============================================================================
+// DEMO INTELLIGENCE & DISCOVERY SERVICES
+// ==============================================================================
+
+/**
+ * Global search across demo assets, findings, and documents
+ */
+export async function getDemoGlobalSearch(query, limit = 15) {
+  if (!query || !query.trim()) {
+    return {
+      query: '',
+      total_matches: 0,
+      results: [],
+      timestamp: new Date().toISOString(),
+    };
+  }
+
+  const q = query.toLowerCase().trim();
+  const results = [];
+
+  // Match demo assets
+  for (const a of DEMO_ASSETS) {
+    if (
+      a.name.toLowerCase().includes(q) ||
+      a.id.toLowerCase().includes(q) ||
+      a.district.toLowerCase().includes(q) ||
+      a.category.toLowerCase().includes(q) ||
+      (a.description && a.description.toLowerCase().includes(q))
+    ) {
+      results.push({
+        entity_type: 'asset',
+        entity_id: a.id,
+        title: a.name,
+        subtitle: `${a.category} • ${a.district}, ${a.state}`,
+        snippet: a.description || `Status: ${a.status} • Risk: ${a.risk_score}`,
+        asset_id: a.id,
+        category: a.category,
+        status: a.status,
+        risk_score: a.risk_score,
+      });
+    }
+  }
+
+  // Match demo findings
+  for (const f of DEMO_FINDINGS) {
+    if (
+      f.title.toLowerCase().includes(q) ||
+      f.plain_explanation.toLowerCase().includes(q) ||
+      f.affected_component.toLowerCase().includes(q)
+    ) {
+      results.push({
+        entity_type: 'finding',
+        entity_id: f.id,
+        title: f.title,
+        subtitle: `Finding (${f.severity}) • Component: ${f.affected_component}`,
+        snippet: f.plain_explanation,
+        asset_id: f.asset_id,
+        category: 'Finding',
+        status: f.resolution_status,
+      });
+    }
+  }
+
+  // Match demo documents
+  for (const doc of Object.values(DEMO_SOURCE_DOCUMENTS)) {
+    if (
+      doc.filename.toLowerCase().includes(q) ||
+      doc.document_name.toLowerCase().includes(q) ||
+      (doc.content && doc.content.toLowerCase().includes(q))
+    ) {
+      results.push({
+        entity_type: 'document',
+        entity_id: doc.filename,
+        title: doc.document_name,
+        subtitle: `Document • ${doc.source_agency || 'Technical Report'}`,
+        snippet: (doc.content || '').slice(0, 160) + '...',
+        asset_id: doc.asset_id,
+        category: 'Document',
+      });
+    }
+  }
+
+  const sliced = results.slice(0, limit);
+  return clone({
+    query,
+    total_matches: results.length,
+    results: sliced,
+    timestamp: new Date().toISOString(),
+  });
+}
+
+/**
+ * Fetch demo media for an asset
+ */
+export async function getDemoAssetMedia(assetId, category = null) {
+  let media = DEMO_MEDIA.filter((m) => m.asset_id === assetId);
+  if (category && category !== 'All') {
+    media = media.filter((m) => m.category.toLowerCase() === category.toLowerCase());
+  }
+  return clone({
+    asset_id: assetId,
+    total_count: media.length,
+    items: media,
+  });
+}
+
+/**
+ * Demo upload blocker
+ */
+export async function uploadDemoAssetMedia() {
+  throw new DemoIsolationError('upload infrastructure photographs or media');
+}
+
+/**
+ * Fetch demo evidence catalog
+ */
+export async function getDemoEvidenceCatalog() {
+  const items = Object.values(DEMO_SOURCE_DOCUMENTS).map((doc) => ({
+    filename: doc.filename,
+    title: doc.document_name,
+    file_type: doc.file_type || 'PDF',
+    size_bytes: doc.size_bytes || 102400,
+    page_count: doc.pages ? doc.pages.length : 1,
+    associated_asset_ids: doc.asset_id ? [doc.asset_id] : [],
+    summary: (doc.content || '').slice(0, 200) + '...',
+    last_indexed_at: '2024-03-12T00:00:00Z',
+    is_available: true,
+  }));
+
+  return clone({
+    total_documents: items.length,
+    items,
+  });
+}
+
+/**
+ * Fetch demo sources for an asset
+ */
+export async function getDemoAssetSources(assetId) {
+  const sources = DEMO_SOURCES.filter((s) => s.asset_id === assetId);
+  return clone({
+    asset_id: assetId,
+    total_count: sources.length,
+    items: sources,
+  });
+}
+
+/**
+ * Fetch demo findings for an asset
+ */
+export async function getDemoAssetFindings(assetId) {
+  const findings = DEMO_FINDINGS.filter((f) => f.asset_id === assetId);
+  return clone({
+    asset_id: assetId,
+    total_count: findings.length,
+    items: findings,
+  });
+}
+
+/**
+ * Demo finding creation blocker
+ */
+export async function createDemoAssetFinding() {
+  throw new DemoIsolationError('create engineering findings');
+}
+
+/**
+ * Get unified intelligence profile for a demo asset
+ */
+export async function getDemoAssetIntelligence(assetId) {
+  const asset = DEMO_ASSETS.find((a) => a.id === assetId);
+  if (!asset) {
+    const err = new Error(`Simulated asset '${assetId}' not found.`);
+    err.status = 404;
+    throw err;
+  }
+
+  const heartbeat = DEMO_HEARTBEATS[assetId] || {
+    asset_id: asset.id,
+    asset_name: asset.name,
+    risk_score: asset.risk_score,
+    risk_tier: asset.risk_level || 'Moderate',
+    health_index: asset.health_index || 70.0,
+    contributing_factors: [],
+    suggested_investigations: [],
+    data_confidence_score: 0.95,
+  };
+
+  const findings = DEMO_FINDINGS.filter((f) => f.asset_id === assetId);
+  const sources = DEMO_SOURCES.filter((s) => s.asset_id === assetId);
+  const media = DEMO_MEDIA.filter((m) => m.asset_id === assetId);
+  const inspections = (DEMO_INSPECTIONS[assetId] || []);
+  const timeline = (DEMO_TIMELINES[assetId] || []);
+
+  return clone({
+    asset,
+    completeness: {
+      percentage: 92,
+      total_fields: 10,
+      verified_fields: ['id', 'name', 'category', 'district', 'state', 'latitude', 'longitude', 'construction_year', 'last_inspection_date'],
+      missing_fields: ['ownership_authority'],
+    },
+    heartbeat,
+    findings,
+    sources,
+    media,
+    inspections,
+    timeline,
+    meta: {
+      generated_at: new Date().toISOString(),
+      disclaimer: DEMO_DISCLAIMER,
+    },
+  });
+}
+
+/**
+ * Get structured printable report for a demo asset
+ */
+export async function getDemoAssetReport(assetId) {
+  const intel = await getDemoAssetIntelligence(assetId);
+  const { asset, heartbeat, findings, sources, inspections } = intel;
+
+  return clone({
+    asset_id: asset.id,
+    asset_name: asset.name,
+    report_title: `Infrastructure Intelligence & Condition Assessment Audit — ${asset.name}`,
+    generated_at: new Date().toISOString(),
+    executive_summary: `Intelligence assessment audit for ${asset.name} (${asset.id}). Current operational status is ${asset.status} with a calculated Digital Heartbeat Risk Score of ${heartbeat.risk_score.toFixed(1)}/100 and Health Index of ${heartbeat.health_index.toFixed(1)}/100. Audit references ${sources.length} traceable evidence citations, ${findings.length} registered engineering findings, and ${inspections.length} recorded field inspection evaluations.`,
+    overall_risk_score: heartbeat.risk_score,
+    overall_health_index: heartbeat.health_index,
+    risk_category: heartbeat.risk_tier,
+    completeness_percentage: intel.completeness.percentage,
+    sections: [
+      {
+        section_id: 'sec-1',
+        title: '1. Asset Identity, Geographic Context & Operational Scope',
+        summary: `${asset.name} is classified under category ${asset.category}, situated at coordinates ${asset.latitude}, ${asset.longitude} within ${asset.district}, ${asset.state}.`,
+        details: [
+          `Category: ${asset.category}`,
+          `Location: ${asset.district}, ${asset.state} (${asset.latitude}, ${asset.longitude})`,
+          `Commissioning: Year ${asset.construction_year || 'Unrecorded'}`,
+          `Current Operational Status: ${asset.status}`,
+          `Data Completeness Score: ${intel.completeness.percentage}%`,
+        ],
+        evidence_citations: sources.slice(0, 2).map((s) => s.title),
+      },
+      {
+        section_id: 'sec-2',
+        title: '2. Digital Heartbeat & Condition Telemetry',
+        summary: `Dynamic risk index calculated at ${heartbeat.risk_score.toFixed(1)} (${heartbeat.risk_tier}), with an overall Health Index of ${heartbeat.health_index.toFixed(1)}/100.`,
+        details: [
+          `Risk Tier: ${heartbeat.risk_tier}`,
+          `Confidence Score: ${(heartbeat.data_confidence_score * 100).toFixed(0)}%`,
+          `Inspection Recency: ${asset.last_inspection_date}`,
+        ],
+        evidence_citations: ['Digital Heartbeat Deterministic 4-Factor Engine (Simulated)'],
+      },
+      {
+        section_id: 'sec-3',
+        title: '3. Engineering Findings & Observed Defects',
+        summary: `Identified ${findings.length} structured findings requiring civil engineering attention.`,
+        details: findings.map((f) => `[${f.severity}] ${f.title} — Component: ${f.affected_component}. Status: ${f.resolution_status}`),
+        evidence_citations: findings.map((f) => f.supporting_evidence).filter(Boolean),
+      },
+      {
+        section_id: 'sec-4',
+        title: '4. Inspection & Verification Lifecycle',
+        summary: `Audit history contains ${inspections.length} field evaluations.`,
+        details: inspections.map((i) => `${i.inspection_date} [${i.status}]: ${i.inspection_type} by ${i.responsible_user} — Outcome: ${i.verification_outcome || 'Pending'}`),
+        evidence_citations: inspections.map((i) => i.evidence_references).filter(Boolean),
+      },
+      {
+        section_id: 'sec-5',
+        title: '5. Data Gaps & Recommended Investigations',
+        summary: 'Identified telemetry and audit gaps requiring field investigation.',
+        details: [
+          'Recommended Action: Verify underwater foundation with diver acoustic survey',
+          'Missing Parameter: ownership_authority',
+        ],
+        evidence_citations: ['AAYAM Data Quality & Completeness Audit (Simulated)'],
+      },
+    ],
+    verified_data_points: ['Asset Coordinates', 'Sensor Data Feed', 'Inspection History'],
+    unverified_claims: ['Subsurface foundation bedrock integrity pending core drilling sample'],
+    evidence_gaps: ['Statutory 5-year seismic vulnerability re-assessment pending'],
+    disclaimer: DEMO_DISCLAIMER,
+  });
+}
+

@@ -1,0 +1,37 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 450" width="800" height="450">
+  <defs>
+    <linearGradient id="headerGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#0F172A" />
+      <stop offset="100%" stop-color="#1E293B" />
+    </linearGradient>
+  </defs>
+  
+  <!-- Background Canvas -->
+  <rect width="800" height="450" fill="#0F172A"/>
+  <rect x="20" y="20" width="760" height="410" fill="#0B132B" stroke="#1E293B" stroke-width="2" rx="8"/>
+
+  <!-- Top Banner / Badge -->
+  <rect x="35" y="35" width="730" height="50" fill="#1E293B" rx="6"/>
+  <rect x="45" y="45" width="12" height="30" fill="#15803D" rx="2"/>
+  <text x="70" y="66" fill="#F8FAFC" font-size="16" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-weight="bold">Krishna Delta Lock Gate #12 - Certified Post-Repair</text>
+  <rect x="610" y="46" width="145" height="26" fill="#15803D" opacity="0.2" rx="4"/>
+  <text x="682" y="63" fill="#15803D" font-size="10" font-family="sans-serif" font-weight="bold" text-anchor="middle">VERIFIED INTERVENTION AUDIT</text>
+
+  <!-- Central Technical Graphic -->
+  <g transform="translate(0, 10)">
+    
+            <rect x="180" y="100" width="440" height="210" fill="#1E293B" stroke="#22C55E" stroke-width="3" rx="4"/>
+            <rect x="240" y="140" width="320" height="140" fill="#334155"/>
+            <circle cx="400" cy="210" r="40" fill="#15803D"/>
+            <path d="M 380 210 L 395 225 L 425 195" fill="none" stroke="#FFFFFF" stroke-width="6" stroke-linecap="round"/>
+            <text x="400" y="275" fill="#4ADE80" font-size="13" font-family="sans-serif" font-weight="bold" text-anchor="middle">SEALS VERIFIED 100% OPERATIONAL</text>
+        
+  </g>
+
+  <!-- Bottom Details Bar -->
+  <rect x="35" y="360" width="730" height="60" fill="#1E293B" rx="6"/>
+  <text x="50" y="382" fill="#94A3B8" font-size="11" font-family="monospace">Asset: Krishna Delta Canal Lock Gate 12 (ASSET-CNL-004)</text>
+  <text x="50" y="402" fill="#94A3B8" font-size="11" font-family="monospace">Date Verified: 2024-08-14 | Agency: AP Water Resources</text>
+  <text x="420" y="382" fill="#CBD5E1" font-size="11" font-family="monospace">Status: Verified Clean | Seepage: 0.00 L/min under full head</text>
+  <text x="420" y="402" fill="#15803D" font-size="11" font-family="monospace" font-weight="bold">Certification: Remediation Successful (Risk discount applied)</text>
+</svg>

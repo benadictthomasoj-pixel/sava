@@ -4,7 +4,10 @@ import {
   Layers,
   MapPin,
   Activity,
+  ClipboardCheck,
+  Library,
   Bot,
+  FileBarChart,
   ExternalLink,
   X,
 } from 'lucide-react';
@@ -25,32 +28,58 @@ export default function Sidebar({
     {
       id: 'overview',
       label: t('nav.overview', 'Dashboard Overview'),
+      ariaLabel: 'Intelligence Overview — Dashboard Overview',
       icon: LayoutDashboard,
       badge: null,
     },
     {
-      id: 'registry',
-      label: t('nav.registry', 'Asset Registry'),
-      icon: Layers,
-      badge: assetCount > 0 ? `${assetCount}` : null,
-    },
-    {
       id: 'map',
       label: t('nav.map', 'Geospatial Map'),
+      ariaLabel: 'Explore Infrastructure — Geospatial Map',
       icon: MapPin,
       badge: 'GIS',
     },
     {
+      id: 'registry',
+      label: t('nav.registry', 'Asset Registry'),
+      ariaLabel: 'Asset Registry',
+      icon: Layers,
+      badge: assetCount > 0 ? `${assetCount}` : null,
+    },
+    {
       id: 'heartbeat',
       label: t('nav.heartbeat', 'Digital Heartbeat'),
+      ariaLabel: 'Digital Heartbeat',
       icon: Activity,
       badge: 'Core',
     },
     {
+      id: 'inspections',
+      label: t('nav.inspections', 'Inspections & Interventions'),
+      ariaLabel: 'Inspections & Interventions',
+      icon: ClipboardCheck,
+      badge: null,
+    },
+    {
+      id: 'evidence',
+      label: t('nav.evidence', 'Evidence Library'),
+      ariaLabel: 'Evidence Library',
+      icon: Library,
+      badge: null,
+    },
+    {
       id: 'copilot',
       label: t('nav.copilot', 'AI Decision Copilot'),
+      ariaLabel: 'AI Intelligence Copilot — AI Decision Copilot',
       icon: Bot,
       badge: 'AI',
+    },
+    {
+      id: 'reports',
+      label: t('nav.reports', 'Reports & History'),
+      ariaLabel: 'Reports & History',
+      icon: FileBarChart,
+      badge: null,
     },
   ];
 
@@ -99,6 +128,7 @@ export default function Sidebar({
           return (
             <button
               key={item.id}
+              aria-label={item.ariaLabel || item.label}
               onClick={() => {
                 onRouteChange(item.id);
                 if (onClose) onClose();

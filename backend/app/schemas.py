@@ -23,6 +23,7 @@ class AssetBase(BaseModel):
     latitude: float
     longitude: float
     construction_year: Optional[int] = None
+    ownership_authority: Optional[str] = "State Public Works Department (PWD)"
     status: str
     data_source: str
     risk_score: float = 15.0
@@ -38,6 +39,9 @@ class AssetCreate(AssetBase):
     pass
 
 class AssetResponse(AssetBase):
+    media_count: int = 0
+    findings_count: int = 0
+    sources_count: int = 0
     created_at: Optional[str] = None
     updated_at: Optional[str] = None
 
@@ -259,3 +263,140 @@ class TokenResponse(BaseModel):
     access_token: str
     token_type: str = "bearer"
     user: UserResponse
+
+
+# ==============================================================================
+# INTELLIGENCE PROFILE, MEDIA, FINDINGS, AND PROVENANCE SCHEMAS
+# ==============================================================================
+
+class AssetMediaResponse(BaseModel):
+    id: str
+    asset_id: str
+    inspection_id: Optional[str] = None
+    file_name: str
+    file_path: str
+    url: str
+    caption: str
+    category: str
+    uploader_name: str
+    captured_at: Optional[str] = None
+    verification_status: str
+    created_at: Optional[str] = None
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class EvidenceSourceResponse(BaseModel):
+    id: str
+    asset_id: str
+    title: str
+    source_type: str
+    provider: str
+    document_name: Optional[str] = None
+    page_or_paragraph: Optional[str] = None
+    excerpt: Optional[str] = None
+    verification_status: str
+    publication_date: Optional[str] = None
+    created_at: Optional[str] = None
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class AssetFindingResponse(BaseModel):
+    id: str
+    asset_id: str
+    title: str
+    plain_explanation: str
+    technical_explanation: str
+    severity: str
+    affected_component: str
+    supporting_evidence: Optional[str] = None
+    date_identified: str
+    verification_status: str
+    recommended_action: str
+    resolution_status: str
+    created_at: Optional[str] = None
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class AssetFindingCreateRequest(BaseModel):
+    title: str = Field(..., description="Short descriptive title of finding")
+    plain_explanation: str = Field(..., description="Plain-language description for non-engineers")
+    technical_explanation: str = Field(..., description="Engineering description of failure mode or defect")
+    severity: str = Field("Moderate", description="Severity: Critical, High, Moderate, Low")
+    affected_component: str = Field(..., description="Infrastructure component e.g. Pier Footing, Spillway Gate")
+    supporting_evidence: Optional[str] = Field(None, description="Citation or document filename")
+    date_identified: str = Field(..., description="Date identified in YYYY-MM-DD")
+    verification_status: str = Field("Verified by Field Audit", description="Verification state")
+    recommended_action: str = Field(..., description="Recommended engineering intervention")
+    resolution_status: str = Field("Open", description="Status: Open, Intervention Underway, Resolved & Certified")
+
+
+class GlobalSearchResultItem(BaseModel):
+    id: str
+    type: str # "asset", "finding", "document", "inspection"
+    title: str
+    subtitle: str
+    category: Optional[str] = None
+    risk_level: Optional[str] = None
+    asset_id: Optional[str] = None
+    url: Optional[str] = None
+    snippet: Optional[str] = None
+
+
+class GlobalSearchResponse(BaseModel):
+    query: str
+    total_matches: int
+    assets: List[GlobalSearchResultItem] = []
+    findings: List[GlobalSearchResultItem] = []
+    documents: List[GlobalSearchResultItem] = []
+
+
+class AssetCompleteness(BaseModel):
+    percentage: int
+    verified_fields: List[str]
+    missing_fields: List[str]
+    has_inspections: bool
+    has_media: bool
+    has_sources: bool
+    has_findings: bool
+
+
+class AssetIntelligenceResponse(BaseModel):
+    asset: AssetResponse
+    completeness: AssetCompleteness
+    heartbeat: HeartbeatResponse
+    findings: List[AssetFindingResponse] = []
+    sources: List[EvidenceSourceResponse] = []
+    media: List[AssetMediaResponse] = []
+    timeline: List[TimelineEvent] = []
+    inspections: List[InspectionResponse] = []
+
+
+class AssetReportSection(BaseModel):
+    section_id: str
+    title: str
+    summary: str
+    details: List[str] = []
+    evidence_citations: List[str] = []
+
+
+class AssetReportResponse(BaseModel):
+    report_id: str
+    generated_at: str
+    generated_by: str
+    asset_id: str
+    asset_name: str
+    category: str
+    district: str
+    state: str
+    ownership_authority: str
+    overall_risk_score: float
+    risk_level: str
+    health_index: float
+    sections: List[AssetReportSection]
+    critical_findings_count: int
+    open_actions_count: int
+    verified_interventions_count: int
+    disclaimer: str = "AAYAM Prototype Intelligence Report. All metrics grounded in available records."
